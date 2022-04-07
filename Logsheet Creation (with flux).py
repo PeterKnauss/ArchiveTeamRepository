@@ -64,6 +64,7 @@ def makelog(date):
         raise ValueError('Cannot find any .fits data files in {}'.format(basefolder+'/data/'))
 
     dp = pandas.DataFrame()
+    dpc=pandas.DataFrame()
     magnitudes=['B','V','J','H','K']
     dp['File'] = [f.split('/')[-1] for f in files]
 #dp['File number'] = [int(f.split('.')[-3]) for f in files]
@@ -140,11 +141,29 @@ def makelog(date):
 
 
         old_name = name
-        
+    for i,l in enumerate(dp['Source Name']):
+        coordinate=str(dp.loc[i,'RA']+' '+ dp.loc[i,'Dec'])
+        proper=splat.properCoordinates(coordinate)
+
+        if 'flat' in l:
+            pass
+        elif 'arc' in l:
+            pass
+        else:
+            proper=splat.properCoordinates(coordinate)
+            dpc.loc[i,'RA']=float(proper.ra.deg)
+            dpc.loc[i,'DEC']=float(proper.dec.deg)
+    dpc=splat.database.prepDB(dpc)
+    dpq=splat.database.queryXMatch(dpc, catalog='2MASS', radius=30.*u.arcsec)
+    dpk=splat.database.queryXMatch(dpq, catalog='Simbad', radius=30.*u.arcsec)    
     dp['Notes'] = ['']*len(files)    
-    dp.sort_values('UT Time',inplace=True)
-    dp.reset_index(inplace=True,drop=True)
-    dp.to_excel(basefolder+'logs_{}.xlsx'.format(date),index=False)	
+
+    with pandas.ExcelWriter(folder+'logs_{}.xlsx'.format(date)) as writer:
+        dp.sort_values('UT Time',inplace=True)
+        dp.reset_index(inplace=True,drop=True)
+        dp.to_excel(writer,sheet_name='Files',index=False)
+        dpk.reset_index(inplace=True,drop=True)
+        dpk.to_excel(writer, sheet_name='Target 2MASS & Simbad Query' )	
     print('log written to {}'.format(basefolder+'logs_{}.xlsx'.format(date)))
 
     return
