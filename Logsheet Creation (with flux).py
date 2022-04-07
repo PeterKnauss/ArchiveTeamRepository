@@ -15,7 +15,7 @@ import glob
 import os
 import sys
 from astropy.io import fits
-
+from openpyxl import load_workbook
 col_top = ['PROG_ID','OBSERVER','DATE_OBS']
 cols_new = {
     'Source Name': 'TCS_OBJ',
@@ -53,18 +53,16 @@ cols_old = {
 
 # basefolder is where you downloaded the fits files
 basefolder='C:\\Users\\peter\\Desktop\\Raw Data'
-
 def makelog(date):
-    #folder = basefolder+'/{}/'.format(date)
-    #if os.path.isdir(folder) == False: 
-        #raise ValueError('Cannot find folder {}'.format(folder))
+    folder = basefolder+'/{}/'.format(date)
+    if os.path.isdir(folder) == False: 
+        raise ValueError('Cannot find folder {}'.format(folder))
     #files = glob.glob(folder+'/data/*.fits')
-    files = glob.glob(basefolder+'\\*.fits')
+    files = glob.glob(folder+'*.fits')
     if len(files) == 0: 
-        raise ValueError('Cannot find any .fits data files in {}'.format(basefolder+'/data/'))
-
-    dp = pandas.DataFrame()
+        raise ValueError('Cannot find any .fits data files in {}'.format(folder+'/data/'))
     dpc=pandas.DataFrame()
+    dp = pandas.DataFrame()
     magnitudes=['B','V','J','H','K']
     dp['File'] = [f.split('/')[-1] for f in files]
 #dp['File number'] = [int(f.split('.')[-3]) for f in files]
@@ -87,61 +85,76 @@ def makelog(date):
         hdu.close()
         
         for c in list(cols.keys()):
-          dp.loc[i,c] = h[cols[c]]
+            dp.loc[i,c] = h[cols[c]]
         if 'arc' in f: 
-          dp.loc[i,'Source Name'] = 'arclamp'
+            dp.loc[i,'Source Name'] = 'arclamp'
         if 'flat' in f: 
-          dp.loc[i,'Source Name'] = 'flat field'
+            dp.loc[i,'Source Name'] = 'flat field'
 
         name = str(dp.loc[i,'Source Name'])
+        coordinate=str(dp.loc[i,'RA']+' '+ dp.loc[i,'Dec'])
+        
+        if old_name!= name:
 
-        if old_name != name:
-          coordinate=str(dp.loc[i,'RA']+' '+ dp.loc[i,'Dec'])
-          for mag in magnitudes:
-              proper_coord=splat.properCoordinates(coordinate)
-              query=splat.database.querySimbad(proper_coord)
-              if len(query.columns) == 0:
-                  dp.loc[i,'Object Type'] = 'N/A'
-                  dp.loc[i,'Spectral Type'] = 'N/A'
-              else:
-                  if 'arc' in f:
-                      dp.loc[i,'Object Type'] = 'None'
-                      dp.loc[i,'Spectral Type'] = 'None'
-                  elif 'flat' in f:
-                      dp.loc[i,'Object Type'] = 'None'
-                      dp.loc[i,'Spectral Type'] = 'None'
-                  else:
-                      dp.loc[i,'Object Type'] = query.loc[0,'OTYPE']
-                      dp.loc[i,'Spectral Type'] = query.loc[0,'SP_TYPE']
-              if 'arc' in f:
-                  dp.loc[i,'%s Flux' %mag]='None'
-              elif 'flat' in f:
-                  dp.loc[i,'%s Flux' %mag]='None'
-              else:
-                  try:
-                      flux=float(query['FLUX_%s' %mag])
-                      dp.loc[i,'%s Flux' %mag]=flux
-                  except:
-                      dp.loc[i, '%s Flux' %mag]='N/A'
-                      pass
-        else:
-          for mag in magnitudes:
-            dp.loc[i,'Object Type'] = dp.loc[int(i-1),'Object Type']
-            dp.loc[i,'Spectral Type'] = dp.loc[int(i-1),'Spectral Type']
-            if 'arc' in f:
-                dp.loc[i,'%s Flux' %mag]='None'
-            elif 'flat' in f:
-                dp.loc[i,'%s Flux' %mag]='None'
-            else:
-                if dp.loc[int(i-1),'%s Flux' %mag] == 'N/A':
-                    dp.loc[i,'%s Flux' %mag] = 'N/A'
+            for mag in magnitudes:
+                proper_coord=splat.properCoordinates(coordinate)
+                query=splat.database.querySimbad(proper_coord)
+                query2MASS=splat.database.queryVizier(proper_coord, catalog='2MASS', radius=30*u.arcsec, nearest=True)
+                if len(query.columns) == 0:
+                    dp.loc[i,'Object Type'] = 'N/A'
+                    dp.loc[i,'Spectral Type'] = 'N/A'
                 else:
-                    flux = dp.loc[int(i-1),'%s Flux' %mag]
-                    dp.loc[i,'%s Flux' %mag] = flux
+                    if 'arc' in f:
+                        dp.loc[i,'Object Type'] = 'None'
+                        dp.loc[i,'Spectral Type'] = 'None'
+                    elif 'flat' in f:
+                        dp.loc[i,'Object Type'] = 'None'
+                        dp.loc[i,'Spectral Type'] = 'None'
+                    else:
+                        dp.loc[i,'Object Type'] = query.loc[0,'OTYPE']
+                        dp.loc[i,'Spectral Type'] = query.loc[0,'SP_TYPE']
+                if 'arc' in f:
+                    dp.loc[i,'%s Flux' %mag]='None'
+                elif 'flat' in f:
+                    dp.loc[i,'%s Flux' %mag]='None'
+                else:
+                    if mag in ['B','V']:
+                        try:
+                            flux=float(query['FLUX_%s' %mag])
+                            dp.loc[i,'%s Flux' %mag]=flux
+                        except:
+                            dp.loc[i, '%s Flux' %mag]='N/A'
+                            pass
+                    if mag in ['J','H','K']:
+                        try:
 
+                            flux=float(query2MASS['%smag' %mag])
+                            dp.loc[i,'%s Flux' %mag]=flux
+                        except:
+                            dp.loc[i, '%s Flux' %mag]='N/A'
+                            pass
+                    
+        else:
+            for mag in magnitudes:
+                dp.loc[i,'Object Type'] = dp.loc[int(i-1),'Object Type']
+                dp.loc[i,'Spectral Type'] = dp.loc[int(i-1),'Spectral Type']
+                if 'arc' in f:
+                    dp.loc[i,'%s Flux' %mag]='None'
+                elif 'flat' in f:
+                    dp.loc[i,'%s Flux' %mag]='None'
+                else:
+                    if dp.loc[int(i-1),'%s Flux' %mag] == 'N/A':
+                        dp.loc[i,'%s Flux' %mag] = 'N/A'
+                    else:
+                        flux = dp.loc[int(i-1),'%s Flux' %mag]
+                        dp.loc[i,'%s Flux' %mag] = flux
+            
 
         old_name = name
+  
+
     for i,l in enumerate(dp['Source Name']):
+
         coordinate=str(dp.loc[i,'RA']+' '+ dp.loc[i,'Dec'])
         proper=splat.properCoordinates(coordinate)
 
@@ -155,17 +168,24 @@ def makelog(date):
             dpc.loc[i,'DEC']=float(proper.dec.deg)
     dpc=splat.database.prepDB(dpc)
     dpq=splat.database.queryXMatch(dpc, catalog='2MASS', radius=30.*u.arcsec)
-    dpk=splat.database.queryXMatch(dpq, catalog='Simbad', radius=30.*u.arcsec)    
-    dp['Notes'] = ['']*len(files)    
+    dpk=splat.database.queryXMatch(dpq, catalog='Simbad', radius=30.*u.arcsec)
+
+    dp['Notes'] = ['']*len(files)
+
+
+    
 
     with pandas.ExcelWriter(folder+'logs_{}.xlsx'.format(date)) as writer:
         dp.sort_values('UT Time',inplace=True)
         dp.reset_index(inplace=True,drop=True)
         dp.to_excel(writer,sheet_name='Files',index=False)
         dpk.reset_index(inplace=True,drop=True)
-        dpk.to_excel(writer, sheet_name='Target 2MASS & Simbad Query' )	
-    print('log written to {}'.format(basefolder+'logs_{}.xlsx'.format(date)))
-
+        dpk.to_excel(writer, sheet_name='Target 2MASS & Simbad Query' )
+        
+    
+    
+    
+    print('log written to {}'.format(folder+'logs_{}.xlsx'.format(date)))
     return
 
 makelog(10/15/2001)
