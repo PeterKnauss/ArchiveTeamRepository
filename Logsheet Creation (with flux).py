@@ -52,6 +52,7 @@ cols_old = {
 }
 
 # basefolder is where you downloaded the fits files
+# For example:
 basefolder='C:\\Users\\peter\\Desktop\\Raw Data'
 def makelog(date):
     folder = basefolder+'/{}/'.format(date)
@@ -94,7 +95,9 @@ def makelog(date):
         name = str(dp.loc[i,'Source Name'])
         coordinate=str(dp.loc[i,'RA']+' '+ dp.loc[i,'Dec'])
         
-        if old_name!= name:
+  # find target magnitude or flux with proper coordinates. using 2MASS catalog for J,H,K flux and querySimbad for B,V.      
+
+        if old_name!= name: # if old_name is not name, run this loop to find magnitude/flux.
 
             for mag in magnitudes:
                 proper_coord=splat.properCoordinates(coordinate)
@@ -119,7 +122,8 @@ def makelog(date):
                     dp.loc[i,'%s Flux' %mag]='None'
                 else:
                     if mag in ['B','V']:
-                        try:
+                        # using 'try' statement in case for queried objects not in database (i.e that returns an empty table, or raises an error)
+                        try: 
                             flux=float(query['FLUX_%s' %mag])
                             dp.loc[i,'%s Flux' %mag]=flux
                         except:
@@ -127,14 +131,14 @@ def makelog(date):
                             pass
                     if mag in ['J','H','K']:
                         try:
-
                             flux=float(query2MASS['%smag' %mag])
                             dp.loc[i,'%s Flux' %mag]=flux
                         except:
                             dp.loc[i, '%s Flux' %mag]='N/A'
                             pass
-                    
-        else:
+                        
+                     
+        else: # For old_name the same as name run the loop below to repeat the known object type, spectral type, and magnitudes.
             for mag in magnitudes:
                 dp.loc[i,'Object Type'] = dp.loc[int(i-1),'Object Type']
                 dp.loc[i,'Spectral Type'] = dp.loc[int(i-1),'Spectral Type']
@@ -149,10 +153,9 @@ def makelog(date):
                         flux = dp.loc[int(i-1),'%s Flux' %mag]
                         dp.loc[i,'%s Flux' %mag] = flux
             
-
         old_name = name
-  
-
+        
+  # 2MASS catalog & Simbad query reference for target sources.
     for i,l in enumerate(dp['Source Name']):
 
         coordinate=str(dp.loc[i,'RA']+' '+ dp.loc[i,'Dec'])
@@ -173,7 +176,7 @@ def makelog(date):
     dp['Notes'] = ['']*len(files)
 
 
-    
+    # Write dataframe in an excel sheet. 
 
     with pandas.ExcelWriter(folder+'logs_{}.xlsx'.format(date)) as writer:
         dp.sort_values('UT Time',inplace=True)
@@ -181,10 +184,7 @@ def makelog(date):
         dp.to_excel(writer,sheet_name='Files',index=False)
         dpk.reset_index(inplace=True,drop=True)
         dpk.to_excel(writer, sheet_name='Target 2MASS & Simbad Query' )
-        
-    
-    
-    
+          
     print('log written to {}'.format(folder+'logs_{}.xlsx'.format(date)))
     return
 
