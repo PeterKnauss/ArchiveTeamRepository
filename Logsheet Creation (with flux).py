@@ -6,6 +6,7 @@ Created on Wed Mar 30 20:37:03 2022
 """
 
 import pandas
+import math
 import astroquery
 from astroquery.simbad import Simbad
 import astropy.coordinates as coord
@@ -187,6 +188,77 @@ def makelog(date):
           
     print('log written to {}'.format(folder+'logs_{}.xlsx'.format(date)))
     return
+#have code make score for source-callibrator pair
+#turns RA into an angle in radians
+def RA_angle(ra):
+    x = float(ra[0:2]) * 15
+    y = float(ra[3:5]) * 0.25
+    z = float(ra[6:10]) * (1/240)
+    angle = math.radians(x+y+z)
+    return(angle)
+
+#turns Dec into an angle in radians
+def Dec_angle(dec):
+    if dec[0] == "-":
+        x = float(dec[0:3])
+        y = float(dec[4:6]) * (1/60)
+        z = float(dec[7:10])* (1/3600)
+        angle = math.radians(x-y-z)
+        return(angle)
+    else:
+        x = float(dec[0:2])
+        y = float(dec[3:5]) * (1/60)
+        z = float(dec[7:9]) * (1/3600)
+        angle = math.radians(x+y+z)
+        return(angle)
+
+#Gets the part of the score from airmass and time
+def partial_score(std_vals, obj_vals):
+    score = 0
+    scalers = [1,2]
+    for i in range(len(scalers)):
+        if std_vals[i] >= obj_vals[i]:
+            aux = abs(std_vals[i]-obj_vals[i])
+        else:
+            aux = abs(obj_vals[i]-std_vals[i])
+        aux = aux * scalers[i]
+        score += aux
+    return(score)
+
+#turns Dec and Ra into distance
+def distance(Dec_1, Dec_2, RA_1, RA_2):
+    a = math.sin((Dec_2-Dec_1)/2)**2
+    b = math.cos(Dec_1)*math.cos(Dec_2)*math.sin((RA_2-RA_1)/2)**2
+    c = math.sqrt(a+b)
+    dist = abs(2*math.asin(c))
+    return(dist)
+
+#turns time into hours
+def hours(time):
+    x = float(time[0:2])
+    y = float(time[3:5]) * (1/60)
+    z = float(time[6:14]) * (1/3600)
+    tm = x+y+z
+    return(tm)
+
+#gets the final score of the pair
+#and this is the function that will be used for the final calculation of score
+#takes a list of 4 strings: ['RA', 'Dec','UT Time', 'airmass']
+#So an example of a list it could take is ['10:16:13.70','29:18:41.9','05:52:16.323347','1.024']
+
+def Score(std,obj):
+    RA_std = RA_angle(std[0])
+    Dec_std = Dec_angle(std[1])
+    RA_obj = RA_angle(obj[0])
+    Dec_obj = Dec_angle(obj[1])
+    dist = distance(Dec_std, Dec_obj, RA_std, RA_obj)
+    time_std = hours(std[2])
+    time_obj = hours(obj[2])
+    std_list = [time_std, float(std[3])]
+    obj_list = [time_obj, float(obj[3])]
+    score = partial_score(std_list, obj_list)
+    score = score + dist
+    return(score)
 
 makelog(10/15/2001)
 
