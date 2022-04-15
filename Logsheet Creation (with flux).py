@@ -64,6 +64,7 @@ def makelog(date):
     if len(files) == 0: 
         raise ValueError('Cannot find any .fits data files in {}'.format(folder+'/data/'))
     dpc=pandas.DataFrame()
+    dpk=pandas.DataFrame()
     dp = pandas.DataFrame()
     magnitudes=['B','V','J','H','K']
     dp['File'] = [f.split('/')[-1] for f in files]
@@ -128,14 +129,9 @@ def makelog(date):
                             flux=float(query['FLUX_%s' %mag])
                             dp.loc[i,'%s Flux' %mag]=flux
                         except:
-                            dp.loc[i, '%s Flux' %mag]='N/A'
-                            pass
-                    if mag in ['J','H','K']:
-                        try:
-                            flux=float(query2MASS['%smag' %mag])
-                            dp.loc[i,'%s Flux' %mag]=flux
-                        except:
-                            dp.loc[i, '%s Flux' %mag]='N/A'
+                            if mag in ['J','H','K']:
+                                flux=float(query2MASS['%smag' %mag])
+                                dp.loc[i,'%s Flux' %mag]=flux
                             pass
                         
                      
@@ -158,22 +154,45 @@ def makelog(date):
         
   # 2MASS catalog & Simbad query reference for target sources.
     for i,l in enumerate(dp['Source Name']):
-
-        coordinate=str(dp.loc[i,'RA']+' '+ dp.loc[i,'Dec'])
+        
+        dpcopy=dp.copy(deep=True)
+        dpcopy.sort_values('UT Time',inplace=True)
+        dpcopy.reset_index(inplace=True,drop=True)
+        coordinate=str(dpcopy.loc[i,'RA']+' '+ dpcopy.loc[i,'Dec'])
         proper=splat.properCoordinates(coordinate)
-
-        if 'flat' in l:
-            pass
-        elif 'arc' in l:
-            pass
-        else:
-            proper=splat.properCoordinates(coordinate)
-            dpc.loc[i,'RA']=float(proper.ra.deg)
-            dpc.loc[i,'DEC']=float(proper.dec.deg)
+        query2MASS=splat.database.queryVizier(proper_coord, catalog='2MASS', radius=30*u.arcsec, nearest=True)
+        dpk.loc[i,'Source Name']= dpcopy.loc[i,'Source Name']
+        dpc.loc[i,'RA']=float(proper.ra.deg)
+        dpc.loc[i,'DEC']=float(proper.dec.deg)
+        
     dpc=splat.database.prepDB(dpc)
     dpq=splat.database.queryXMatch(dpc, catalog='2MASS', radius=30.*u.arcsec)
-    dpk=splat.database.queryXMatch(dpq, catalog='Simbad', radius=30.*u.arcsec)
+    dpj=splat.database.queryXMatch(dpq, catalog='Simbad', radius=30.*u.arcsec)
 
+    for i, f in enumerate(dpj['DESIGNATION']):
+        
+        for cols in list(dpj.columns):
+            
+            dpk.loc[i, cols]=dpj.loc[i, cols]
+            
+            if 'flat' in dpk.loc[i, 'Source Name']:
+                dpk.loc[i,cols]=''
+            if 'arc' in dpk.loc[i, 'Source Name']:
+                dpk.loc[i, cols]=''
+# The for..if...if loop is a rough code trying to replace JHK mags by checking the error jhk-mags. 
+# basically if the cell is empty then don't use the JHKmag there, if it's not empty then replace the JHK mag on the "Files" sheet with the 2MASS catalog
+# This definitely needs some corrections for files with moving sources...
+        for mag in ['J','H','K']:
+            
+            if ((dpk.loc[i,'2MASS_e_Jmag'])!= False) and (dpk.loc[i,'2MASS_e_Hmag']!= '') and (dpk.loc[i,'2MASS_e_Kmag']!= ''):
+                
+                if dpk.loc[i,'SIMBAD_main_id']==False:
+                    dp.loc[i,'%s Flux' %mag]=dpk.loc[i,'2MASS_%smag' %mag]
+            else:
+                if dpk.loc[i,'SIMBAD_main_id']==False:
+                    if dpk.loc[i,'Source Name'] == dpk.loc[i+1, 'Source Name']:                                   
+                        dp.loc[i, '%s Flux' %mag] = dpk.loc[i+1, '%s Flux' %mag]
+                    
     dp['Notes'] = ['']*len(files)
 
 
