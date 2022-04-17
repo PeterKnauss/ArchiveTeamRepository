@@ -16,6 +16,10 @@ import os
 import sys
 from astropy.io import fits
 from openpyxl import load_workbook
+
+#-----------------------------------------------------------------------------#
+# Values for new and old columns
+
 col_top = ['PROG_ID','OBSERVER','DATE_OBS']
 cols_new = {
     'Source Name': 'TCS_OBJ',
@@ -51,58 +55,56 @@ cols_old = {
     'Observer': 'OBSERVER',
 }
 
+#-----------------------------------------------------------------------------#
+# Original Settings Required
+
 # basefolder is where you downloaded the fits files
 # For example:
 basefolder='C:\\Users\\peter\\Desktop\\Raw Data'
-def makelog(date):
-    folder = basefolder+'/{}/'.format(date)
+magnitudes=['B','V','J','H','K']
+
+#-----------------------------------------------------------------------------#
+# Opens and extracts data from hdu files
+
+def openfiles(date): #Opens and extracts data from hdu files
+    folder = basefolder
+    #####USED IN IDL#####folder = basefolder+'/{}/'.format(date)
     if os.path.isdir(folder) == False: 
         raise ValueError('Cannot find folder {}'.format(folder))
-    #files = glob.glob(folder+'/data/*.fits')
-    files = glob.glob(folder+'*.fits')
+    ####USED IN IDL#####files = glob.glob(folder+'/data/*.fits')
+    files = glob.glob(basefolder+'\\*.fits')
     if len(files) == 0: 
-        raise ValueError('Cannot find any .fits data files in {}'.format(folder+'/data/'))
-    dpc=pandas.DataFrame()
+        raise ValueError('Cannot find any .fits data files in {}'
+                         .format(folder+'/data/'))
+    dpc = pandas.DataFrame()
     dp = pandas.DataFrame()
-    magnitudes=['B','V','J','H','K']
     dp['File'] = [f.split('/')[-1] for f in files]
-#dp['File number'] = [int(f.split('.')[-3]) for f in files]
 
-# select which columns to use
+# select which set of columns to use
     hdu = fits.open(files[0])
     h = hdu[0].header
     hdu.close()
     if 'TCS_OBJ' in list(h.keys()): cols = cols_new
     else: cols = cols_old
+    
+    return cols, files, dp, dpc
 
-# make log	
-    for c in list(cols.keys()): 
-        dp[c] = ['']*len(files)
-    old_name = None
-    for i,f in enumerate(files):
-        hdu = fits.open(f)
-        hdu.verify('silentfix')
-        h = hdu[0].header
-        hdu.close()
-        
-        for c in list(cols.keys()):
-            dp.loc[i,c] = h[cols[c]]
-        if 'arc' in f: 
-            dp.loc[i,'Source Name'] = 'arclamp'
-        if 'flat' in f: 
-            dp.loc[i,'Source Name'] = 'flat field'
+#-----------------------------------------------------------------------------#
+# Finds target magnitude with proper coordinates using 2Mass catalog
+# J,H,K flux and Simbad for B,V
 
+def magnitude_get(i, dp, old_name, f):
         name = str(dp.loc[i,'Source Name'])
         coordinate=str(dp.loc[i,'RA']+' '+ dp.loc[i,'Dec'])
         
-  # find target magnitude or flux with proper coordinates. using 2MASS catalog for J,H,K flux and querySimbad for B,V.      
-
-        if old_name!= name: # if old_name is not name, run this loop to find magnitude/flux.
+    # if old_name is not name, run this loop to find magnitude/flux.
+        if old_name!= name: 
 
             for mag in magnitudes:
                 proper_coord=splat.properCoordinates(coordinate)
                 query=splat.database.querySimbad(proper_coord)
-                query2MASS=splat.database.queryVizier(proper_coord, catalog='2MASS', radius=30*u.arcsec, nearest=True)
+                query2MASS=splat.database.queryVizier(proper_coord, 
+                            catalog='2MASS', radius=30*u.arcsec, nearest=True)
                 if len(query.columns) == 0:
                     dp.loc[i,'Object Type'] = 'N/A'
                     dp.loc[i,'Spectral Type'] = 'N/A'
@@ -122,7 +124,9 @@ def makelog(date):
                     dp.loc[i,'%s Flux' %mag]='None'
                 else:
                     if mag in ['B','V']:
-                        # using 'try' statement in case for queried objects not in database (i.e that returns an empty table, or raises an error)
+  
+   # Use 'try' statement in case for queried objects not in database 
+   # (i.e that returns an empty table, or raises an error)
                         try: 
                             flux=float(query['FLUX_%s' %mag])
                             dp.loc[i,'%s Flux' %mag]=flux
@@ -137,8 +141,9 @@ def makelog(date):
                             dp.loc[i, '%s Flux' %mag]='N/A'
                             pass
                         
-                     
-        else: # For old_name the same as name run the loop below to repeat the known object type, spectral type, and magnitudes.
+    # For old_name the same as name run the loop below to repeat the known 
+    # object type, spectral type, and magnitudes.
+        else: 
             for mag in magnitudes:
                 dp.loc[i,'Object Type'] = dp.loc[int(i-1),'Object Type']
                 dp.loc[i,'Spectral Type'] = dp.loc[int(i-1),'Spectral Type']
@@ -155,7 +160,12 @@ def makelog(date):
             
         old_name = name
         
-  # 2MASS catalog & Simbad query reference for target sources.
+        return dp
+
+#-----------------------------------------------------------------------------#
+# 2Mass catalog and Simbad query reference for target sources
+
+def query_reference(dp, dpc):
     for i,l in enumerate(dp['Source Name']):
 
         coordinate=str(dp.loc[i,'RA']+' '+ dp.loc[i,'Dec'])
@@ -173,24 +183,51 @@ def makelog(date):
     dpq=splat.database.queryXMatch(dpc, catalog='2MASS', radius=30.*u.arcsec)
     dpk=splat.database.queryXMatch(dpq, catalog='Simbad', radius=30.*u.arcsec)
 
-    dp['Notes'] = ['']*len(files)
+    return dp, dpc, dpk
 
+#-----------------------------------------------------------------------------#
+# Write dataframes to an excel sheet
 
-    # Write dataframe in an excel sheet. 
-
-    with pandas.ExcelWriter(folder+'logs_{}.xlsx'.format(date)) as writer:
+def writer(date, dp, dpk):
+    with pandas.ExcelWriter(basefolder+'logs_{}.xlsx'.format(date)) as writer:
         dp.sort_values('UT Time',inplace=True)
         dp.reset_index(inplace=True,drop=True)
         dp.to_excel(writer,sheet_name='Files',index=False)
         dpk.reset_index(inplace=True,drop=True)
         dpk.to_excel(writer, sheet_name='Target 2MASS & Simbad Query' )
           
-    print('log written to {}'.format(folder+'logs_{}.xlsx'.format(date)))
+    print('log written to {}'.format(basefolder+'logs_{}.xlsx'.format(date)))
     return
+    
+#-----------------------------------------------------------------------------#
+# Actually make the log
+
+def makelog(date):
+    cols, files, dp, dpc = openfiles(date)
+    for c in list(cols.keys()): 
+        dp[c] = ['']*len(files)
+    old_name = None
+    for i,f in enumerate(files):
+        hdu = fits.open(f)
+        hdu.verify('silentfix')
+        h = hdu[0].header
+        hdu.close()
+        
+        for c in list(cols.keys()):
+            dp.loc[i,c] = h[cols[c]]
+        if 'arc' in f: 
+            dp.loc[i,'Source Name'] = 'arclamp'
+        if 'flat' in f: 
+            dp.loc[i,'Source Name'] = 'flat field'   
+
+        dp = magnitude_get(i, dp, old_name, f)
+        
+    dp, dpc, dpk = query_reference(dp, dpc)
+
+    dp['Notes'] = ['']*len(files)
+
+    writer(date, dp, dpk)
+
+#-----------------------------------------------------------------------------#
 
 makelog(10/15/2001)
-
-# external function call
-#if __name__ == '__main__':
- #   if len(sys.argv) > 1: 
-  #      makelog(sys.argv[1])
