@@ -16,6 +16,7 @@ import os
 import sys
 from astropy.io import fits
 from openpyxl import load_workbook
+import numpy as np
 
 #-----------------------------------------------------------------------------#
 # Values for new and old columns
@@ -54,8 +55,11 @@ cols_old = {
     'Mode': 'GRAT',
     'Observer': 'OBSERVER',
 }
+###############################################################################
 
-#-----------------------------------------------------------------------------#
+#Log Creation Subroutines#
+
+###############################################################################
 # Original Settings Required
 
 # basefolder is where you downloaded the fits files
@@ -199,7 +203,135 @@ def writer(date, dp, dpk):
     print('log written to {}'.format(basefolder+'logs_{}.xlsx'.format(date)))
     return
     
+###############################################################################
+
+# Batch Creation Subroutines
+
+###############################################################################
+# Create Batches
+
+def add_batch(source, batch, final, prefix, airmass, ra_first, ra_last, dec_first, dec_last):
+
+    # If we haven't see this Source before, create a place for it
+    if not final.get(source):
+        final[source] = {'types': {'calibration': [], 'calibrator': [], 'target': []}}
+
+    # Add the data to the final
+    for type in ['calibration', 'calibrator', 'target']:
+        if batch[type]:
+            final[source]['types'][type].append({'start': batch[type][0], 'end': batch[type][-1], 'airmass': airmass})
+    final[source]['prefix'] = prefix
+    final[source]['ra_last'] = ra_last
+    final[source]['ra_first'] = ra_first
+    final[source]['dec_last'] = dec_last
+    final[source]['dec_first'] = dec_first
+
 #-----------------------------------------------------------------------------#
+# Create Dictionaries for each batch
+
+def create_dictionaries(mode, dp):
+
+    # Set up some variables
+    final = {}
+    batch = {'calibration': [], 'calibrator': [], 'target': []}
+    prefix_old = None
+    source_old = None
+    airmass_old = None
+    ra_old = None
+    dec_old = None
+    ra_first = None
+    dec_first = None
+
+    # Filter data by Mode
+    data = []
+    for index in np.arange(0, len(dp.index)):
+        if mode == dp.iloc[index]['Mode']:
+            data.append(dp.iloc[index])
+
+    # If the filter left us with nothing, give up
+    if not data:
+        return None
+
+    # Run through each row of the filtererd data
+    for row in data:
+
+        # Get the individual values, using part of File for Source if Source is generic
+        prefix = row['File'][0:-11]
+        number = row['File'][-11:-7]
+        source = row['Source Name']
+        if source == 'Object_Observed':
+            source = row['File'][0:-11]
+        if source in ['flat field', 'arclamp']:
+            source = 'flatlamp'
+            prefix = 'flat/arc'
+        ra = row['RA']
+        dec = row['Dec']
+        integration = row['Integration']
+        airmass = row['Airmass']
+
+        # If this iteration of the loop has a new Source, process the values we have been saving
+        if source_old is not None and source.lower() != source_old.lower():
+
+            # Add this batch to the final result
+            add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, ra_first, ra_old, dec_first, dec_old)
+
+            # Start a new batch
+            batch = {'calibration': [], 'calibrator': [], 'target': []}
+            ra_first = ra
+            dec_first = dec
+       
+        if ra_first == None:
+            ra_first = ra
+            dec_first = dec
+
+        # Remember the last Source we saw, so we can tell if it changes with the next line
+        prefix_old = prefix
+        source_old = source
+        ra_old = ra
+        dec_old = dec
+        airmass_old = airmass
+
+        # The actual smarts -- figure out what type the record is based on the Integration
+        if integration <= 1.8:
+            type = 'calibration'
+        elif integration <= 70.0:
+            type = 'calibrator'
+        else:
+            type = 'target'
+
+        # Add the Number to this batch as the particular Type
+        batch[type].append(number)
+
+    # Add the last batch to the final
+    add_batch(source.lower(), batch, final, prefix, airmass, ra_first, ra, dec_first, dec)
+
+    return final
+
+#-----------------------------------------------------------------------------#
+# Moving vs Fixed
+
+#def moving_fixed(final):
+    #for source in final.keys():
+        #ra_first = final[source]['ra_first']
+        #ra_last = final[source]['ra_last']
+        #dec_first = final[source]['dec_first']
+        #dec_last = final[source]['dec_last']
+        #ra_first_prop = float(splat.properCoordinates(str(ra_first) + ' ' + str(dec_first)).ra.deg)
+        #ra_last_prop = float(splat.properCoordinates(str(ra_last) + ' ' + str(dec_last)).ra.deg)
+        #dec_first_prop = float(splat.properCoordinates(str(ra_first) + ' ' + str(dec_first)).dec.deg)
+        #dec_last_prop = float(splat.properCoordinates(str(ra_first) + ' ' + str(dec_first)).dec.deg)
+        
+        #ra_diff = abs(ra_last_prop - ra_first_prop)
+        #dec_diff = abs(dec_last_prop - dec_first_prop)
+        
+        #print(source)
+        #print('ra_diff')
+        #print(ra_diff)
+        #print('dec_diff')
+        #print(dec_diff)
+        #print('------------------')
+        
+###############################################################################
 # Actually make the log
 
 def makelog(date):
@@ -227,7 +359,11 @@ def makelog(date):
     dp['Notes'] = ['']*len(files)
 
     writer(date, dp, dpk)
+    
+    return dp
 
 #-----------------------------------------------------------------------------#
 
-makelog(10/15/2001)
+dp = makelog(10/15/2001)
+final = create_dictionaries('LowRes15', dp)
+#moving_fixed(final)
