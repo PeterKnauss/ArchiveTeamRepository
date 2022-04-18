@@ -221,13 +221,13 @@ def Dec_angle(dec):
     if dec[0] == "-":
         x = float(dec[0:3])
         y = float(dec[4:6]) * (1/60)
-        z = float(dec[7:10])* (1/3600)
+        z = float(dec[7:])* (1/3600)
         angle = math.radians(x-y-z)
         return(angle)
     else:
         x = float(dec[0:2])
         y = float(dec[3:5]) * (1/60)
-        z = float(dec[7:9]) * (1/3600)
+        z = float(dec[6:]) * (1/3600)
         angle = math.radians(x+y+z)
         return(angle)
 
