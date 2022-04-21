@@ -215,7 +215,6 @@ def source_list(final, dp):
 
     return dpsl
         
-        
 #-----------------------------------------------------------------------------#
 # Moving vs Fixed
 
@@ -254,14 +253,14 @@ def moving_fixed(final, source):
 ###############################################################################
 # Create Batches
 
-def add_batch(source, batch, final, prefix, airmass, ra_first, ra_last, dec_first, dec_last):
+def add_batch(source, batch, final, prefix, airmass, ra_first, ra_last, dec_first, dec_last, uttime):
 
     # If we haven't see this Source before, create a place for it
     if not final.get(source):
-        final[source] = {'types': {'calibration': [], 'calibrator': [], 'target': []}}
+        final[source] = {'types': {'calibrator': [], 'target': []}}
 
     # Add the data to the final
-    for type in ['calibration', 'calibrator', 'target']:
+    for type in ['calibrator', 'target']:
         if batch[type]:
             final[source]['types'][type].append({'start': batch[type][0], 'end': batch[type][-1], 'airmass': airmass})
     final[source]['prefix'] = prefix
@@ -269,6 +268,7 @@ def add_batch(source, batch, final, prefix, airmass, ra_first, ra_last, dec_firs
     final[source]['ra_first'] = ra_first
     final[source]['dec_last'] = dec_last
     final[source]['dec_first'] = dec_first
+    final[source]['UT Time'] = uttime
 
 #-----------------------------------------------------------------------------#
 # Create Dictionaries for each batch
@@ -285,6 +285,7 @@ def create_dictionaries(mode, dp):
     dec_old = None
     ra_first = None
     dec_first = None
+    uttime = None
 
     # Filter data by Mode
     data = []
@@ -294,6 +295,7 @@ def create_dictionaries(mode, dp):
 
     # If the filter left us with nothing, give up
     if not data:
+        print('There is no data with mode %s' %mode)
         return None
 
     # Run through each row of the filtererd data
@@ -306,8 +308,9 @@ def create_dictionaries(mode, dp):
         if source == 'Object_Observed':
             source = row['File'][0:-11]
         if source in ['flat field', 'arclamp']:
-            source = 'flatlamp'
-            prefix = 'flat/arc'
+            continue
+            #source = 'flatlamp'
+            #prefix = 'flat/arc'
         ra = row['RA']
         dec = row['Dec']
         integration = row['Integration']
@@ -317,16 +320,18 @@ def create_dictionaries(mode, dp):
         if source_old is not None and source.lower() != source_old.lower():
 
             # Add this batch to the final result
-            add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, ra_first, ra_old, dec_first, dec_old)
+            add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, ra_first, ra_old, dec_first, dec_old, uttime)
 
             # Start a new batch
-            batch = {'calibration': [], 'calibrator': [], 'target': []}
+            batch = {'calibrator': [], 'target': []}
             ra_first = ra
             dec_first = dec
+            uttime = row['UT Time']
        
         if ra_first == None:
             ra_first = ra
             dec_first = dec
+            uttime = row['UT Time']
 
         # Remember the last Source we saw, so we can tell if it changes with the next line
         prefix_old = prefix
@@ -335,10 +340,8 @@ def create_dictionaries(mode, dp):
         dec_old = dec
         airmass_old = airmass
 
-        # The actual smarts -- figure out what type the record is based on the Integration
-        if integration <= 1.8:
-            type = 'calibration'
-        elif integration <= 70.0:
+        # The actual smarts -- figure out what type the star is based on the Integration
+        if integration <= 70.0:
             type = 'calibrator'
         else:
             type = 'target'
@@ -347,7 +350,7 @@ def create_dictionaries(mode, dp):
         batch[type].append(number)
 
     # Add the last batch to the final
-    add_batch(source.lower(), batch, final, prefix, airmass, ra_first, ra, dec_first, dec)
+    add_batch(source.lower(), batch, final, prefix, airmass, ra_first, ra, dec_first, dec, uttime)
 
     return final
 
@@ -377,7 +380,7 @@ def makelog(date):
     final = create_dictionaries('LowRes15',dp)
     dp['Object Type'] = ['']*len(files)
     
-    #print(final)
+    print(final)
         
     for i,f in enumerate(files):
         source = dp.loc[i,'Source Name'].lower()
