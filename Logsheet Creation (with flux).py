@@ -110,17 +110,13 @@ def magnitude_get(i, dp, old_name, f):
                 query2MASS=splat.database.queryVizier(proper_coord, 
                             catalog='2MASS', radius=30*u.arcsec, nearest=True)
                 if len(query.columns) == 0:
-                    dp.loc[i,'Object Type'] = 'N/A'
                     dp.loc[i,'Spectral Type'] = 'N/A'
                 else:
                     if 'arc' in f:
-                        dp.loc[i,'Object Type'] = 'None'
                         dp.loc[i,'Spectral Type'] = 'None'
                     elif 'flat' in f:
-                        dp.loc[i,'Object Type'] = 'None'
                         dp.loc[i,'Spectral Type'] = 'None'
                     else:
-                        dp.loc[i,'Object Type'] = query.loc[0,'OTYPE']
                         dp.loc[i,'Spectral Type'] = query.loc[0,'SP_TYPE']
                 if 'arc' in f:
                     dp.loc[i,'%s Flux' %mag]='None'
@@ -192,16 +188,64 @@ def query_reference(dp, dpc):
 #-----------------------------------------------------------------------------#
 # Write dataframes to an excel sheet
 
-def writer(date, dp, dpk):
+def writer(date, dp, dpk, dpsl):
     with pandas.ExcelWriter(basefolder+'logs_{}.xlsx'.format(date)) as writer:
         dp.sort_values('UT Time',inplace=True)
         dp.reset_index(inplace=True,drop=True)
         dp.to_excel(writer,sheet_name='Files',index=False)
         dpk.reset_index(inplace=True,drop=True)
-        dpk.to_excel(writer, sheet_name='Target 2MASS & Simbad Query' )
+        dpk.to_excel(writer, sheet_name='Target 2MASS & Simbad Query',index = False)
+        dpsl.to_excel(writer, sheet_name='Source List', index = False)
           
     print('log written to {}'.format(basefolder+'logs_{}.xlsx'.format(date)))
     return
+
+#-----------------------------------------------------------------------------#
+# Create new DataFrame for source list
+
+def source_list(final, dp):
+    dpsl = pandas.DataFrame()
+    for i, sources in enumerate(final):
+        if 'flat' in sources:
+            pass
+        else:
+            dpsl.loc[i,'Source Name'] = sources
+            dpsl.loc[i,'RA'] = final[sources]['ra_first']
+            dpsl.loc[i,'Dec'] = final[sources]['dec_first']
+
+    return dpsl
+        
+        
+#-----------------------------------------------------------------------------#
+# Moving vs Fixed
+
+def moving_fixed(final, source):
+    ra_first = final[source]['ra_first']
+    ra_last = final[source]['ra_last']
+    dec_first = final[source]['dec_first']
+    dec_last = final[source]['dec_last']
+    ra_first_prop = float(splat.properCoordinates(str(ra_first) + ' ' + str(dec_first)).ra.deg)
+    ra_last_prop = float(splat.properCoordinates(str(ra_last) + ' ' + str(dec_last)).ra.deg)
+    dec_first_prop = float(splat.properCoordinates(str(ra_first) + ' ' + str(dec_first)).dec.deg)
+    dec_last_prop = float(splat.properCoordinates(str(ra_last) + ' ' + str(dec_last)).dec.deg)
+        
+    ra_diff = abs(ra_last_prop - ra_first_prop)
+    dec_diff = abs(dec_last_prop - dec_first_prop)
+    
+    if ra_diff > 0.001 or dec_diff > 0.001:
+        object_type = 'moving'
+    else:
+        object_type = 'fixed'
+        
+    #if source in ['2001 be10','1620','20790','2000 xl44','110','29']:
+        #print(source)
+        #print('ra_diff')
+        #print(ra_diff)
+        #print('dec_diff')
+        #print(dec_diff)
+        #print('------------------')
+        
+    return object_type
     
 ###############################################################################
 
@@ -307,38 +351,16 @@ def create_dictionaries(mode, dp):
 
     return final
 
-#-----------------------------------------------------------------------------#
-# Moving vs Fixed
-
-#def moving_fixed(final):
-    #for source in final.keys():
-        #ra_first = final[source]['ra_first']
-        #ra_last = final[source]['ra_last']
-        #dec_first = final[source]['dec_first']
-        #dec_last = final[source]['dec_last']
-        #ra_first_prop = float(splat.properCoordinates(str(ra_first) + ' ' + str(dec_first)).ra.deg)
-        #ra_last_prop = float(splat.properCoordinates(str(ra_last) + ' ' + str(dec_last)).ra.deg)
-        #dec_first_prop = float(splat.properCoordinates(str(ra_first) + ' ' + str(dec_first)).dec.deg)
-        #dec_last_prop = float(splat.properCoordinates(str(ra_first) + ' ' + str(dec_first)).dec.deg)
-        
-        #ra_diff = abs(ra_last_prop - ra_first_prop)
-        #dec_diff = abs(dec_last_prop - dec_first_prop)
-        
-        #print(source)
-        #print('ra_diff')
-        #print(ra_diff)
-        #print('dec_diff')
-        #print(dec_diff)
-        #print('------------------')
-        
 ###############################################################################
 # Actually make the log
 
 def makelog(date):
+    
     cols, files, dp, dpc = openfiles(date)
     for c in list(cols.keys()): 
         dp[c] = ['']*len(files)
     old_name = None
+    object_type = None
     for i,f in enumerate(files):
         hdu = fits.open(f)
         hdu.verify('silentfix')
@@ -351,19 +373,34 @@ def makelog(date):
             dp.loc[i,'Source Name'] = 'arclamp'
         if 'flat' in f: 
             dp.loc[i,'Source Name'] = 'flat field'   
-
-        dp = magnitude_get(i, dp, old_name, f)
+        
+    final = create_dictionaries('LowRes15',dp)
+    dp['Object Type'] = ['']*len(files)
+    
+    #print(final)
+        
+    for i,f in enumerate(files):
+        source = dp.loc[i,'Source Name'].lower()
+        if source == 'arclamp':
+            dp.loc[i,'Object Type'] = 'Calibration'
+        elif source == 'flat field':
+            dp.loc[i,'Object Type'] = 'Calibration'
+        else:
+            object_type = moving_fixed(final, source)
+            dp.loc[i,'Object Type'] = object_type
+        if object_type == 'fixed':
+            dp = magnitude_get(i, dp, old_name, f)
         
     dp, dpc, dpk = query_reference(dp, dpc)
 
     dp['Notes'] = ['']*len(files)
 
-    writer(date, dp, dpk)
+    dpsl = source_list(final, dp)
+    
+    writer(date, dp, dpk, dpsl)
     
     return dp
 
 #-----------------------------------------------------------------------------#
 
-dp = makelog(10/15/2001)
-final = create_dictionaries('LowRes15', dp)
-#moving_fixed(final)
+makelog(10/15/2001)
