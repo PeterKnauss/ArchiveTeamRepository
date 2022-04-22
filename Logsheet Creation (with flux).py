@@ -195,7 +195,9 @@ def writer(date, dp, dpk, dpsl):
         dp.to_excel(writer,sheet_name='Files',index=False)
         dpk.reset_index(inplace=True,drop=True)
         dpk.to_excel(writer, sheet_name='Target 2MASS & Simbad Query',index = False)
-        dpsl.to_excel(writer, sheet_name='Source List', index = False)
+        #dpsl.to_excel(writer, sheet_name='Source List', index = False)
+        dpsl2.reset_index(inplace=True,drop=True)
+        dpsl2.to_excel(writer, sheet_name='Source List2', index=False )
           
     print('log written to {}'.format(basefolder+'logs_{}.xlsx'.format(date)))
     return
@@ -203,17 +205,17 @@ def writer(date, dp, dpk, dpsl):
 #-----------------------------------------------------------------------------#
 # Create new DataFrame for source list
 
-def source_list(final, dp):
-    dpsl = pandas.DataFrame()
-    for i, sources in enumerate(final):
-        if 'flat' in sources:
-            pass
-        else:
-            dpsl.loc[i,'Source Name'] = sources
-            dpsl.loc[i,'RA'] = final[sources]['ra_first']
-            dpsl.loc[i,'Dec'] = final[sources]['dec_first']
+#def source_list(final, dp):
+#    dpsl = pandas.DataFrame()
+#    for i, sources in enumerate(final):
+#        if 'flat' in sources:
+#            pass
+#        else:
+#            dpsl.loc[i,'Source Name'] = sources
+#            dpsl.loc[i,'RA'] = final[sources]['ra_first']
+#            dpsl.loc[i,'Dec'] = final[sources]['dec_first']
 
-    return dpsl
+#    return dpsl
         
 #-----------------------------------------------------------------------------#
 # Moving vs Fixed
@@ -353,7 +355,57 @@ def create_dictionaries(mode, dp):
     add_batch(source.lower(), batch, final, prefix, airmass, ra_first, ra, dec_first, dec, uttime)
 
     return final
+##############################################################################################
+def get_source_name_list(dp):
+    source_name_list=[]
+    for i,l in enumerate(dp['Source Name']):
+        dpcopy=dp.copy(deep=True)
+        dpcopy.sort_values('UT Time',inplace=True)
+        dpcopy.reset_index(inplace=True,drop=True)
+        coordinate=str(dpcopy.loc[i,'RA']+' '+ dpcopy.loc[i,'Dec'])
+        proper=splat.properCoordinates(coordinate)
+        dpc.loc[i.'RA']=float(proper.ra.deg)
+        dpc.loc[i,'DEC']=float(proper.dec.deg)
+        if 'flat' in dpcopy.loc[i, 'Source Name']:
+            pass
+        elif 'arc' in dpcopy.loc[i,'Source Name']:
+            pass
+        else:
+            if  dpcopy.loc[i,'Source Name' ] in source_name_list:
+                pass
+           
+            else:
+                source_name_list.append(dpcopy.loc[i,'Source Name'])
+    return source_name_list  
 
+def get_avg(source_name_list):
+    dpsl2=pandas.DataFrame()  
+    avg_list=[]
+    dpcc=pandas.DataFrame()
+    num=0
+    for name in source_name_list:
+        ra_list=[]
+        dec_list=[]
+        dpsl2.loc[num,'Source Name']=name
+        num=num+1
+        for i,l in enumerate(dpcopy['Source Name']):
+        
+            if dpcopy.loc[i, 'Source Name'] in name:
+                ra_list.append(dpc.loc[i,'RA'])
+                dec_list.append(dpc.loc[i,'DEC'])
+        
+        ra_sum=sum(ra_list)
+        dec_sum=sum(dec_list)
+        ra_avg=ra_sum/(len(ra_list))
+        dec_avg=dec_sum/(len(dec_list))
+        dpcc=dpcc.append({'DEC':dec_avg, 'RA':ra_avg }, ignore_index=True)
+    dpc=splat.database.preDB(dpcc)
+    dpq=splat.database.queryXMatch(dpc, catalog='2MASS', radius=30.*u.arcsec)
+    dpj=splat.database.queryXMatch(dpq, catalog='Simbad', radius=30.*u.arcsec)
+    for i, f in enumerate(dpj['DESIGNATION']):
+        for cols in list(dpj.columns):
+            dpsl2.loc[i,cols]=dpj.loc[i,cols]
+    return dpsl2
 ###############################################################################
 # Actually make the log
 
@@ -393,14 +445,16 @@ def makelog(date):
             dp.loc[i,'Object Type'] = object_type
         if object_type == 'fixed':
             dp = magnitude_get(i, dp, old_name, f)
-        
-    dp, dpc, dpk = query_reference(dp, dpc)
+    snl=get_source_name_list(dp)
+    get_avg(snl)
+    #dp, dpc, dpk = query_reference(dp, dpc)
 
     dp['Notes'] = ['']*len(files)
 
-    dpsl = source_list(final, dp)
+    #dpsl = source_list(final, dp)
     
-    writer(date, dp, dpk, dpsl)
+    
+    writer(date, dp, dpsl2)
     
     return dp
 
