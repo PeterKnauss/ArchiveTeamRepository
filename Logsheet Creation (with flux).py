@@ -212,8 +212,8 @@ def writer(date, dp, dpk, dpsl):
 #            pass
 #        else:
 #            dpsl.loc[i,'Source Name'] = sources
-#            dpsl.loc[i,'RA'] = final[sources]['ra_first']
-#            dpsl.loc[i,'Dec'] = final[sources]['dec_first']
+#            dpsl.loc[i,'RA'] = final[sources]['ra'][0]
+#            dpsl.loc[i,'Dec'] = final[sources]['dec'][-1]
 
 #    return dpsl
         
