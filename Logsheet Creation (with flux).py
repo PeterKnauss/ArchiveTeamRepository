@@ -75,7 +75,7 @@ def openfiles(date): #Opens and extracts data from hdu files
     #####USED IN IDL#####folder = basefolder+'/{}/'.format(date)
     if os.path.isdir(folder) == False: 
         raise ValueError('Cannot find folder {}'.format(folder))
-    ####USED IN IDL#####files = glob.glob(folder+'/data/*.fits')
+    ####USED IN IDL#####files = glob.glob(folder+ '.fits')
     files = glob.glob(basefolder+'\\*.fits')
     if len(files) == 0: 
         raise ValueError('Cannot find any .fits data files in {}'
@@ -163,41 +163,17 @@ def magnitude_get(i, dp, old_name, f):
         return dp
 
 #-----------------------------------------------------------------------------#
-# 2Mass catalog and Simbad query reference for target sources
-
-def query_reference(dp, dpc):
-    for i,l in enumerate(dp['Source Name']):
-
-        coordinate=str(dp.loc[i,'RA']+' '+ dp.loc[i,'Dec'])
-        proper=splat.properCoordinates(coordinate)
-
-        if 'flat' in l:
-            pass
-        elif 'arc' in l:
-            pass
-        else:
-            proper=splat.properCoordinates(coordinate)
-            dpc.loc[i,'RA']=float(proper.ra.deg)
-            dpc.loc[i,'DEC']=float(proper.dec.deg)
-    dpc=splat.database.prepDB(dpc)
-    dpq=splat.database.queryXMatch(dpc, catalog='2MASS', radius=30.*u.arcsec)
-    dpk=splat.database.queryXMatch(dpq, catalog='Simbad', radius=30.*u.arcsec)
-
-    return dp, dpc, dpk
 
 #-----------------------------------------------------------------------------#
 # Write dataframes to an excel sheet
 
-def writer(date, dp, dpk, dpsl):
+def writer(date, dp, dpsl):
     with pandas.ExcelWriter(basefolder+'logs_{}.xlsx'.format(date)) as writer:
         dp.sort_values('UT Time',inplace=True)
         dp.reset_index(inplace=True,drop=True)
         dp.to_excel(writer,sheet_name='Files',index=False)
-        dpk.reset_index(inplace=True,drop=True)
-        dpk.to_excel(writer, sheet_name='Target 2MASS & Simbad Query',index = False)
-        #dpsl.to_excel(writer, sheet_name='Source List', index = False)
-        dpsl2.reset_index(inplace=True,drop=True)
-        dpsl2.to_excel(writer, sheet_name='Source List2', index=False )
+        dpsl.reset_index(inplace=True,drop=True)
+        dpsl.to_excel(writer, sheet_name='Source List', index=False )
           
     print('log written to {}'.format(basefolder+'logs_{}.xlsx'.format(date)))
     return
@@ -298,7 +274,8 @@ def create_dictionaries(mode, dp):
     # If the filter left us with nothing, give up
     if not data:
         print('There is no data with mode %s' %mode)
-        return None
+        return None # comment out this line if the data has empty cells in MODE or has no mode
+                    # and add data.append(dp.iloc[index]) to take account into data with no mode
 
     # Run through each row of the filtererd data
     for row in data:
@@ -356,8 +333,9 @@ def create_dictionaries(mode, dp):
 
     return final
 ##############################################################################################
-def get_source_name_list(dp):
+def get_source_list(dp):
     source_name_list=[]
+    dpc=pandas.DataFrame()
     for i,l in enumerate(dp['Source Name']):
         dpcopy=dp.copy(deep=True)
         dpcopy.sort_values('UT Time',inplace=True)
@@ -376,10 +354,8 @@ def get_source_name_list(dp):
            
             else:
                 source_name_list.append(dpcopy.loc[i,'Source Name'])
-    return source_name_list  
 
-def get_avg(source_name_list):
-    dpsl2=pandas.DataFrame()  
+    dpsl=pandas.DataFrame()  
     avg_list=[]
     dpcc=pandas.DataFrame()
     num=0
@@ -399,13 +375,13 @@ def get_avg(source_name_list):
         ra_avg=ra_sum/(len(ra_list))
         dec_avg=dec_sum/(len(dec_list))
         dpcc=dpcc.append({'DEC':dec_avg, 'RA':ra_avg }, ignore_index=True)
-    dpc=splat.database.preDB(dpcc)
+    dpc=splat.database.prepDB(dpcc)
     dpq=splat.database.queryXMatch(dpc, catalog='2MASS', radius=30.*u.arcsec)
     dpj=splat.database.queryXMatch(dpq, catalog='Simbad', radius=30.*u.arcsec)
     for i, f in enumerate(dpj['DESIGNATION']):
         for cols in list(dpj.columns):
-            dpsl2.loc[i,cols]=dpj.loc[i,cols]
-    return dpsl2
+            dpsl.loc[i,cols]=dpj.loc[i,cols]
+    return dpsl
 ###############################################################################
 # Actually make the log
 
@@ -445,8 +421,8 @@ def makelog(date):
             dp.loc[i,'Object Type'] = object_type
         if object_type == 'fixed':
             dp = magnitude_get(i, dp, old_name, f)
-    snl=get_source_name_list(dp)
-    get_avg(snl)
+    dpsl=get_source_list(dp)
+    
     #dp, dpc, dpk = query_reference(dp, dpc)
 
     dp['Notes'] = ['']*len(files)
@@ -454,7 +430,7 @@ def makelog(date):
     #dpsl = source_list(final, dp)
     
     
-    writer(date, dp, dpsl2)
+    writer(date, dp, dpsl)
     
     return dp
 
