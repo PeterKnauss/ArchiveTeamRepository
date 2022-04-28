@@ -17,6 +17,7 @@ import sys
 from astropy.io import fits
 from openpyxl import load_workbook
 import numpy as np
+import math
 
 #-----------------------------------------------------------------------------#
 # Values for new and old columns
@@ -163,7 +164,124 @@ def magnitude_get(i, dp, old_name, f):
         return dp
 
 #-----------------------------------------------------------------------------#
+#Code and function used to get the scores
 
+#Code used to find RA
+def RA_angle(ra):
+    x = float(ra[0:2]) * 15
+    y = float(ra[3:5]) * 0.25
+    z = float(ra[6:10]) * (1/240)
+    angle = math.radians(x+y+z)
+    return(angle)
+
+#Code for Dec
+def Dec_angle(dec):
+    if dec[0] == "-":
+        x = float(dec[0:3])
+        y = float(dec[4:6]) * (1/60)
+        z = float(dec[7:10])* (1/3600)
+        angle = math.radians(x-y-z)
+        return(angle)
+    else:
+        x = float(dec[0:2])
+        y = float(dec[3:5]) * (1/60)
+        z = float(dec[7:9]) * (1/3600)
+        angle = math.radians(x+y+z)
+        return(angle)
+
+#Code to find distance between two objects
+def distance(Dec_1, Dec_2, RA_1, RA_2):
+    a = math.sin((Dec_2-Dec_1)/2)**2
+    b = math.cos(Dec_1)*math.cos(Dec_2)*math.sin((RA_2-RA_1)/2)**2
+    c = math.sqrt(a+b)
+    dist = 0.8*abs(math.asin(c))
+    return(dist)
+
+#code used to turn UT time into hours
+def hours(time):
+    x = float(time[0:2])
+    y = float(time[3:5]) * (1/60)
+    z = float(time[6:14]) * (1/3600)
+    tm = x+y+z
+    return(tm)
+
+#generates the score form airmass and time
+def partial_score(std_vals, obj_vals):
+    Peter = 0
+    scalers = [3,0.3]
+    for i in range(len(scalers)):
+        if std_vals[i] >= obj_vals[i]:
+            aux = abs(std_vals[i]-obj_vals[i])
+        else:
+            aux = abs(obj_vals[i]-std_vals[i])
+        aux = aux * scalers[i]
+        Peter += aux
+    return(Peter)
+
+#generates final score
+def Score(std,obj):
+    RA_std = RA_angle(std[0])
+    Dec_std = Dec_angle(std[1])
+    RA_obj = RA_angle(obj[0])
+    Dec_obj = Dec_angle(obj[1])
+    dist = distance(Dec_std, Dec_obj, RA_std, RA_obj)
+    time_std = hours(std[2])
+    time_obj = hours(obj[2])
+    std_list = [time_std, float(std[3])]
+    obj_list = [time_obj, float(obj[3])]
+    score = partial_score(std_list, obj_list)
+    score = score + dist
+    return(score)
+
+#gives 2D list of scores given some dictionary
+def Get_Scores(Dict):
+  target = []
+  calibrator = []
+  #This for loop pulls RA, Dec, UT time, and airmass for each object
+  #and puts it in a list, that then gets added to either the target
+  #or calibrator list defined above
+  for i in Dict.keys():
+    temp = []
+    RA = Dict[i]['RA'][0]
+    Dec = Dict[i]['Dec'][0]
+    Time = Dict[i]['UTtime']
+    temp.append(str(RA))
+    temp.append(str(Dec))
+    temp.append(str(Time))
+
+    #logic used to identify if something is a target or a calibrator
+    calibrator_diff = Dict[i]['types']['calibrator']['end'] - Dict[i]['types']['calibrator']['start']
+    target_diff = Dict[i]['types']['target']['end'] - Dict[i]['types']['target']['start'] 
+    if calibrator_diff > target_diff:
+      Airmass = Dict[i]['Types']['calibrator']['Airmass']
+      temp.append(str(Airmass))
+      calibrator.append(temp)
+    else:
+      Airmass = Dict[i]['Types']['target']['Airmass']
+      temp.append(str(Airmass))
+      target.append(temp)
+
+    #Creates a 2D list of scores where the columns are calibrators and
+    #the rows are targets
+    Scores = []
+    for i in target:
+        row = []
+        for j in calibrator:
+          a = Score(i,j)
+          row.append(a)
+          Scores.append(row)
+
+    #picks the best calibrator for each target based on its score
+    Best = []
+    for i in Scores:
+        pair = []
+        a = min(i)
+        b = i.index(a)
+        pair.append(a)
+        pair.append(b)
+        Best.append(pair)
+
+    return Best
 #-----------------------------------------------------------------------------#
 # Write dataframes to an excel sheet
 
