@@ -480,7 +480,20 @@ def get_source_list(dp):
     for name in source_name_list:
         ra_list=[]
         dec_list=[]
-        dpsl2.loc[num,'Source Name']=name
+        dpsl.loc[num,'Source Name']=name
+        try:
+            #Horizons works too. For example,
+            #dpsl.loc[num , 'Moving object- Abs Mag ']= float(Horizons(id=dpsl.loc[num,'Source Name']).ephemerides()['H'])
+            dpsl.loc[num,'Moving obj- Abs Mag ']= float(SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['H'])
+            dpsl.loc[num,'Moving obj- Diameter ']= SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['diameter']
+            dpsl.loc[num,'Moving obj- Diameter_sig']= SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['diameter_sig']
+            dpsl.loc[num,'Moving obj- Rotation period ']= SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['rot_per']
+        except:
+            dpsl.loc[num,'Moving obj- Abs Mag ']='N/A'                    
+            dpsl.loc[num,'Moving obj- Diameter ']= 'N/A'
+            dpsl.loc[num,'Moving obj- Diameter_sig']= 'N/A'
+            dpsl.loc[num,'Moving obj- Rotation period ']= 'N/A'
+            
         num=num+1
         for i,l in enumerate(dpcopy['Source Name']):
         
