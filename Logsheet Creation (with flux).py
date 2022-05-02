@@ -234,31 +234,41 @@ def Score(std,obj):
     return(score)
 
 #gives 2D list of scores given some dictionary
-def Get_Scores(Dict):
+def Get_Scores(dictionary):
   target = []
   calibrator = []
   #This for loop pulls RA, Dec, UT time, and airmass for each object
   #and puts it in a list, that then gets added to either the target
   #or calibrator list defined above
-  for i in Dict.keys():
+  for i in dictionary.keys():
     temp = []
-    RA = Dict[i]['RA'][0]
-    Dec = Dict[i]['Dec'][0]
-    Time = Dict[i]['UTtime']
+    RA = dictionary[i]['RA'][0]
+    Dec = dictionary[i]['Dec'][0]
+    Time = dictionary[i]['UT Time']
     temp.append(str(RA))
     temp.append(str(Dec))
     temp.append(str(Time))
 
     #logic used to identify if something is a target or a calibrator
-    calibrator_diff = Dict[i]['types']['calibrator']['end'] - Dict[i]['types']['calibrator']['start']
-    target_diff = Dict[i]['types']['target']['end'] - Dict[i]['types']['target']['start'] 
-    if calibrator_diff > target_diff:
-      Airmass = Dict[i]['Types']['calibrator']['Airmass']
-      temp.append(str(Airmass))
+    try: 
+        calibrator_diff = int(dictionary[i]['types']['calibrator'][0]['end']) - int(dictionary[i]['types']['calibrator'][0]['start'])
+    except IndexError:
+        calibrator_diff = None
+    try: 
+        target_diff = int(dictionary[i]['types']['target'][0]['end']) - int(dictionary[i]['types']['target'][0]['start'])
+    except IndexError:
+        target_diff = None
+    
+    print(calibrator_diff)
+    print(target_diff)
+
+    if target_diff == None or calibrator_diff > target_diff:
+      airmass = dictionary[i]['types']['calibrator'][0]['airmass']
+      temp.append(str(airmass))
       calibrator.append(temp)
     else:
-      Airmass = Dict[i]['Types']['target']['Airmass']
-      temp.append(str(Airmass))
+      airmass = dictionary[i]['types']['target'][0]['airmass']
+      temp.append(str(airmass))
       target.append(temp)
 
     #Creates a 2D list of scores where the columns are calibrators and
@@ -315,10 +325,10 @@ def writer(date, dp, dpsl):
 # Moving vs Fixed
 
 def moving_fixed(final, source):
-    ra_first = final[source]['ra_first']
-    ra_last = final[source]['ra_last']
-    dec_first = final[source]['dec_first']
-    dec_last = final[source]['dec_last']
+    ra_first = final[source]['RA'][0]
+    ra_last = final[source]['RA'][-1]
+    dec_first = final[source]['Dec'][0]
+    dec_last = final[source]['Dec'][-1]
     ra_first_prop = float(splat.properCoordinates(str(ra_first) + ' ' + str(dec_first)).ra.deg)
     ra_last_prop = float(splat.properCoordinates(str(ra_last) + ' ' + str(dec_last)).ra.deg)
     dec_first_prop = float(splat.properCoordinates(str(ra_first) + ' ' + str(dec_first)).dec.deg)
@@ -360,16 +370,14 @@ def add_batch(source, batch, final, prefix, airmass, ra_first, ra_last, dec_firs
         if batch[type]:
             final[source]['types'][type].append({'start': batch[type][0], 'end': batch[type][-1], 'airmass': airmass})
     final[source]['prefix'] = prefix
-    final[source]['ra_last'] = ra_last
-    final[source]['ra_first'] = ra_first
-    final[source]['dec_last'] = dec_last
-    final[source]['dec_first'] = dec_first
+    final[source]['RA'] = [ra_first, ra_last]
+    final[source]['Dec'] = [dec_first, dec_last]
     final[source]['UT Time'] = uttime
 
 #-----------------------------------------------------------------------------#
 # Create Dictionaries for each batch
 
-def create_dictionaries(mode, dp):
+def create_dictionaries(dp):
 
     # Set up some variables
     final = {}
@@ -386,13 +394,12 @@ def create_dictionaries(mode, dp):
     # Filter data by Mode
     data = []
     for index in np.arange(0, len(dp.index)):
-        if mode == dp.iloc[index]['Mode']:
-            data.append(dp.iloc[index])
+         data.append(dp.iloc[index])
 
     # If the filter left us with nothing, give up
-    if not data:
-        print('There is no data with mode %s' %mode)
-        return None # comment out this line if the data has empty cells in MODE or has no mode
+    #if not data:
+        #print('There is no data with mode %s' %mode)
+        #return None # comment out this line if the data has empty cells in MODE or has no mode
                     # and add data.append(dp.iloc[index]) to take account into data with no mode
 
     # Run through each row of the filtererd data
@@ -450,7 +457,9 @@ def create_dictionaries(mode, dp):
     add_batch(source.lower(), batch, final, prefix, airmass, ra_first, ra, dec_first, dec, uttime)
 
     return final
+
 ##############################################################################################
+
 def get_source_list(dp):
     source_name_list=[]
     dpc=pandas.DataFrame()
@@ -460,7 +469,7 @@ def get_source_list(dp):
         dpcopy.reset_index(inplace=True,drop=True)
         coordinate=str(dpcopy.loc[i,'RA']+' '+ dpcopy.loc[i,'Dec'])
         proper=splat.properCoordinates(coordinate)
-        dpc.loc[i.'RA']=float(proper.ra.deg)
+        dpc.loc[i,'RA']=float(proper.ra.deg)
         dpc.loc[i,'DEC']=float(proper.dec.deg)
         if 'flat' in dpcopy.loc[i, 'Source Name']:
             pass
@@ -512,7 +521,9 @@ def get_source_list(dp):
     for i, f in enumerate(dpj['DESIGNATION']):
         for cols in list(dpj.columns):
             dpsl.loc[i,cols]=dpj.loc[i,cols]
+            
     return dpsl
+
 ###############################################################################
 # Actually make the log
 
@@ -536,10 +547,10 @@ def makelog(date):
         if 'flat' in f: 
             dp.loc[i,'Source Name'] = 'flat field'   
         
-    final = create_dictionaries('LowRes15',dp)
+    final = create_dictionaries(dp)
     dp['Object Type'] = ['']*len(files)
     
-    print(final)
+    #print(final)
         
     for i,f in enumerate(files):
         source = dp.loc[i,'Source Name'].lower()
@@ -552,7 +563,11 @@ def makelog(date):
             dp.loc[i,'Object Type'] = object_type
         if object_type == 'fixed':
             dp = magnitude_get(i, dp, old_name, f)
+            
     dpsl=get_source_list(dp)
+    
+    best = Get_Scores(final)
+    print(best)
     
     #dp, dpc, dpk = query_reference(dp, dpc)
 
