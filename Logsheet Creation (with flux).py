@@ -259,9 +259,6 @@ def Get_Scores(dictionary):
         target_diff = int(dictionary[i]['types']['target'][0]['end']) - int(dictionary[i]['types']['target'][0]['start'])
     except IndexError:
         target_diff = None
-    
-    print(calibrator_diff)
-    print(target_diff)
 
     if target_diff == None or calibrator_diff > target_diff:
       airmass = dictionary[i]['types']['calibrator'][0]['airmass']
