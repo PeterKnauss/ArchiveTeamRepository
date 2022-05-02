@@ -18,6 +18,7 @@ from astropy.io import fits
 from openpyxl import load_workbook
 import numpy as np
 import math
+from astroquery.jplsbdb import SBDB
 
 #-----------------------------------------------------------------------------#
 # Values for new and old columns
