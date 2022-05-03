@@ -245,7 +245,7 @@ def Get_Scores(dictionary):
     temp = []
     RA = dictionary[i]['RA'][0]
     Dec = dictionary[i]['Dec'][0]
-    Time = dictionary[i]['UT Time']
+    Time = dictionary[i]['UT Time'][0]
     temp.append(str(RA))
     temp.append(str(Dec))
     temp.append(str(Time))
@@ -260,8 +260,8 @@ def Get_Scores(dictionary):
     except IndexError:
         target_diff = None
     
-    print(calibrator_diff)
-    print(target_diff)
+    #print(calibrator_diff)
+    #print(target_diff)
 
     if target_diff == None or calibrator_diff > target_diff:
       airmass = dictionary[i]['types']['calibrator'][0]['airmass']
@@ -338,18 +338,27 @@ def moving_fixed(final, source):
     ra_diff = abs(ra_last_prop - ra_first_prop)
     dec_diff = abs(dec_last_prop - dec_first_prop)
     
-    if ra_diff > 0.001 or dec_diff > 0.001:
+    first_time = hours(final[source]['UT Time'][0])
+    last_time = hours(final[source]['UT Time'][-1])
+    time_diff = last_time - first_time
+    
+    #print(time_diff)
+    
+    ra_time_diff = ra_diff / time_diff
+    dec_time_diff = dec_diff / time_diff
+    
+    if ra_time_diff > 0.003 or dec_time_diff > 0.003:
         object_type = 'moving'
     else:
         object_type = 'fixed'
         
     #if source in ['2001 be10','1620','20790','2000 xl44','110','29']:
-        #print(source)
-        #print('ra_diff')
-        #print(ra_diff)
-        #print('dec_diff')
-        #print(dec_diff)
-        #print('------------------')
+    #print(source)
+    #print('ra_diff')
+    #print(ra_time_diff)
+    #print('dec_diff')
+    #print(dec_time_diff)
+    #print('------------------')
         
     return object_type
     
@@ -360,7 +369,7 @@ def moving_fixed(final, source):
 ###############################################################################
 # Create Batches
 
-def add_batch(source, batch, final, prefix, airmass, ra_first, ra_last, dec_first, dec_last, uttime):
+def add_batch(source, batch, final, prefix, airmass, ra_first, ra_last, dec_first, dec_last, ut_first, ut_last):
 
     # If we haven't see this Source before, create a place for it
     if not final.get(source):
@@ -373,7 +382,7 @@ def add_batch(source, batch, final, prefix, airmass, ra_first, ra_last, dec_firs
     final[source]['prefix'] = prefix
     final[source]['RA'] = [ra_first, ra_last]
     final[source]['Dec'] = [dec_first, dec_last]
-    final[source]['UT Time'] = uttime
+    final[source]['UT Time'] = [ut_first, ut_last]
 
 #-----------------------------------------------------------------------------#
 # Create Dictionaries for each batch
@@ -390,7 +399,8 @@ def create_dictionaries(dp):
     dec_old = None
     ra_first = None
     dec_first = None
-    uttime = None
+    ut_first = None
+    ut_old = None
 
     # Filter data by Mode
     data = []
@@ -420,23 +430,24 @@ def create_dictionaries(dp):
         dec = row['Dec']
         integration = row['Integration']
         airmass = row['Airmass']
+        ut = row['UT Time']
 
         # If this iteration of the loop has a new Source, process the values we have been saving
         if source_old is not None and source.lower() != source_old.lower():
 
             # Add this batch to the final result
-            add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, ra_first, ra_old, dec_first, dec_old, uttime)
+            add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, ra_first, ra_old, dec_first, dec_old, ut_first, ut_old)
 
             # Start a new batch
             batch = {'calibrator': [], 'target': []}
             ra_first = ra
             dec_first = dec
-            uttime = row['UT Time']
+            ut_first = row['UT Time']
        
         if ra_first == None:
             ra_first = ra
             dec_first = dec
-            uttime = row['UT Time']
+            ut_first = ut
 
         # Remember the last Source we saw, so we can tell if it changes with the next line
         prefix_old = prefix
@@ -444,6 +455,7 @@ def create_dictionaries(dp):
         ra_old = ra
         dec_old = dec
         airmass_old = airmass
+        ut_old = ut
 
         # The actual smarts -- figure out what type the star is based on the Integration
         if integration <= 70.0:
@@ -455,7 +467,7 @@ def create_dictionaries(dp):
         batch[type].append(number)
 
     # Add the last batch to the final
-    add_batch(source.lower(), batch, final, prefix, airmass, ra_first, ra, dec_first, dec, uttime)
+    add_batch(source.lower(), batch, final, prefix, airmass, ra_first, ra, dec_first, dec, ut_first, ut_old)
 
     return final
 
