@@ -236,41 +236,41 @@ def Score(std,obj):
 
 #gives 2D list of scores given some dictionary
 def Get_Scores(dictionary):
-  target = []
-  calibrator = []
-  #This for loop pulls RA, Dec, UT time, and airmass for each object
-  #and puts it in a list, that then gets added to either the target
-  #or calibrator list defined above
-  for i in dictionary.keys():
-    temp = []
-    RA = dictionary[i]['RA'][0]
-    Dec = dictionary[i]['Dec'][0]
-    Time = dictionary[i]['UT Time'][0]
-    temp.append(str(RA))
-    temp.append(str(Dec))
-    temp.append(str(Time))
+    target = []
+    calibrator = []
+    #This for loop pulls RA, Dec, UT time, and airmass for each object
+    #and puts it in a list, that then gets added to either the target
+    #or calibrator list defined above
+    for i in dictionary.keys():
+        temp = []
+        RA = dictionary[i]['RA'][0]
+        Dec = dictionary[i]['Dec'][0]
+        Time = dictionary[i]['UT Time'][0]
+        temp.append(str(RA))
+        temp.append(str(Dec))
+        temp.append(str(Time))
 
     #logic used to identify if something is a target or a calibrator
-    try: 
-        calibrator_diff = int(dictionary[i]['types']['calibrator'][0]['end']) - int(dictionary[i]['types']['calibrator'][0]['start'])
-    except IndexError:
-        calibrator_diff = None
-    try: 
-        target_diff = int(dictionary[i]['types']['target'][0]['end']) - int(dictionary[i]['types']['target'][0]['start'])
-    except IndexError:
-        target_diff = None
+        try: 
+            calibrator_diff = int(dictionary[i]['types']['calibrator'][0]['end']) - int(dictionary[i]['types']['calibrator'][0]['start'])
+        except IndexError:
+            calibrator_diff = None
+        try: 
+            target_diff = int(dictionary[i]['types']['target'][0]['end']) - int(dictionary[i]['types']['target'][0]['start'])
+        except IndexError:
+            target_diff = None
     
     #print(calibrator_diff)
     #print(target_diff)
 
-    if target_diff == None or calibrator_diff > target_diff:
-      airmass = dictionary[i]['types']['calibrator'][0]['airmass']
-      temp.append(str(airmass))
-      calibrator.append(temp)
-    else:
-      airmass = dictionary[i]['types']['target'][0]['airmass']
-      temp.append(str(airmass))
-      target.append(temp)
+        if target_diff == None or calibrator_diff > target_diff:
+            airmass = dictionary[i]['types']['calibrator'][0]['airmass']
+            temp.append(str(airmass))
+            calibrator.append(temp)
+        else:
+            airmass = dictionary[i]['types']['target'][0]['airmass']
+            temp.append(str(airmass))
+            target.append(temp)
 
     #Creates a 2D list of scores where the columns are calibrators and
     #the rows are targets
@@ -278,9 +278,9 @@ def Get_Scores(dictionary):
     for i in target:
         row = []
         for j in calibrator:
-          a = Score(i,j)
-          row.append(a)
-          Scores.append(row)
+            a = Score(i,j)
+            row.append(a)
+            Scores.append(row)
 
     #picks the best calibrator for each target based on its score
     Best = []
