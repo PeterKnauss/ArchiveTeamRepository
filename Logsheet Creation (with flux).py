@@ -267,11 +267,22 @@ def Get_Scores(dictionary):
     #print(calibrator_diff)
     #print(target_diff)
 
-        if target_diff == None or calibrator_diff > target_diff:
+        if calibrator_diff == None:
+            airmass = dictionary[i]['types']['target'][0]['airmass']
+            temp.append(str(airmass))
+            target.append(temp)
+        
+        elif target_diff == None:
             airmass = dictionary[i]['types']['calibrator'][0]['airmass']
             temp.append(str(airmass))
             calibrator.append(temp)
-        else:
+
+        elif calibrator_diff > target_diff:
+            airmass = dictionary[i]['types']['calibrator'][0]['airmass']
+            temp.append(str(airmass))
+            calibrator.append(temp)
+            
+        elif target_diff > calibrator_diff:
             airmass = dictionary[i]['types']['target'][0]['airmass']
             temp.append(str(airmass))
             target.append(temp)
