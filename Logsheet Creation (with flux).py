@@ -217,7 +217,7 @@ def partial_score(std_vals, obj_vals):
             aux = abs(obj_vals[i]-std_vals[i])
         aux = aux * scalers[i]
         Peter += aux
-    return(Peter)
+    return Peter
 
 #generates final score
 def Score(std,obj):
@@ -228,11 +228,11 @@ def Score(std,obj):
     dist = distance(Dec_std, Dec_obj, RA_std, RA_obj)
     time_std = hours(std[2])
     time_obj = hours(obj[2])
-    std_list = [time_std, float(std[3])]
-    obj_list = [time_obj, float(obj[3])]
+    std_list = [time_std, float(std[4])]
+    obj_list = [time_obj, float(obj[4])]
     score = partial_score(std_list, obj_list)
     score = score + dist
-    return(score)
+    return score
 
 #gives 2D list of scores given some dictionary
 def Get_Scores(dictionary):
@@ -249,6 +249,7 @@ def Get_Scores(dictionary):
         temp.append(str(RA))
         temp.append(str(Dec))
         temp.append(str(Time))
+        temp.append(str(i))
 
     #logic used to identify if something is a target or a calibrator
         try: 
@@ -260,8 +261,8 @@ def Get_Scores(dictionary):
         except IndexError:
             target_diff = None
     
-    #print(calibrator_diff)
-    #print(target_diff)
+        #print(calibrator_diff)
+        #print(target_diff)
 
         if calibrator_diff == None:
             airmass = dictionary[i]['types']['target'][0]['airmass']
@@ -291,8 +292,8 @@ def Get_Scores(dictionary):
         for j in calibrator:
             a = Score(i,j)
             row.append(a)
-            Scores.append(row)
-
+        Scores.append(row)
+    
     #picks the best calibrator for each target based on its score
     Best = []
     for i in Scores:
@@ -303,7 +304,7 @@ def Get_Scores(dictionary):
         pair.append(b)
         Best.append(pair)
 
-    return Best
+    return Best, calibrator, target
 #-----------------------------------------------------------------------------#
 # Write dataframes to an excel sheet
 
@@ -469,7 +470,7 @@ def create_dictionaries(dp):
         ut_old = ut
 
         # The actual smarts -- figure out what type the star is based on the Integration
-        if integration <= 70.0:
+        if integration < 70:
             type = 'calibrator'
         else:
             type = 'target'
@@ -507,7 +508,7 @@ def get_source_list(dp):
                 source_name_list.append(dpcopy.loc[i,'Source Name'])
 
     dpsl=pandas.DataFrame()  
-    avg_list=[]
+    #avg_list=[]
     dpcc=pandas.DataFrame()
     num=0
     for name in source_name_list:
@@ -590,9 +591,53 @@ def makelog(date):
             
     dpsl=get_source_list(dp)
     
-    best = Get_Scores(final)
-    print(best)
+    best, calibrator, target = Get_Scores(final)
+    #print('Best')
+    #print(best)
+    #print('calibrator')
+    #print(calibrator)
+    #print('target')
+    #print(target)
     
+    for number, lists in enumerate(target):
+        name = lists[3]
+        rows = dp.loc[(dp['Source Name'].str.lower() == name) & (dp['Object Type'] == 'moving')]
+        if rows.empty:
+            #INSERT STUFF FOR MOVING TARGET IDENTIFICATION HERE
+            pass
+        else:
+            prefix = final[name]['prefix']
+            start_of_target = final[name]['types']['target'][0]['start']
+            end_of_target = final[name]['types']['target'][0]['end']
+            calibrator_index = best[number][1]
+            calibrator_name = calibrator[calibrator_index][3]
+            start_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['start']
+            end_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['end']
+            calibrator_rows = dp.loc[(dp['Source Name'].str.lower() == calibrator_name)]
+            B_mag = calibrator_rows['B Flux'][0]
+            V_mag = calibrator_rows['V Flux'][0]
+            
+            print('Prefix'
+                  '%s'
+                  
+                  'Object Range'
+                  '%s - %s' 
+                  
+                  'Standard Range'
+                  '%s - %s' 
+                  
+                  'Standard B Mag'
+                  '%s'
+                  
+                  'Standard V Mag'
+                  '%s'
+                  
+                  'File Name'
+                  'spex_prism_%s_%s'
+                  
+                  (prefix, start_of_target, end_of_target, start_of_calibrator, end_of_calibrator, B_mag, V_mag, name, date))
+                  
+                  
     #dp, dpc, dpk = query_reference(dp, dpc)
 
     dp['Notes'] = ['']*len(files)
