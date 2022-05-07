@@ -18,7 +18,11 @@ from astropy.io import fits
 from openpyxl import load_workbook
 import numpy as np
 import math
+import re
 from astroquery.jplsbdb import SBDB
+from sbident import SBIdent # pip install git+https://github.com/bengebre/sbident
+from astropy.time import Time
+from astropy.coordinates import SkyCoord
 
 #-----------------------------------------------------------------------------#
 # Values for new and old columns
@@ -488,6 +492,9 @@ def create_dictionaries(dp):
 def get_source_list(dp):
     source_name_list=[]
     dpc=pandas.DataFrame()
+    time_list=[]
+    coord_list=[]
+    index_list_source=[]
     for i,l in enumerate(dp['Source Name']):
         dpcopy=dp.copy(deep=True)
         dpcopy.sort_values('UT Time',inplace=True)
@@ -506,27 +513,45 @@ def get_source_list(dp):
            
             else:
                 source_name_list.append(dpcopy.loc[i,'Source Name'])
+                time_list.append(str(date[0:4])+'-'+str(date[4:6])+'-'+str(date[6:])+' '+str(dpcopy.loc[i,'UT Time']))
+                coord_list.append(str(dpcopy.loc[i,'RA'])+' '+str(dpcopy.loc[i,'Dec']))
+                index_list_source.append(i)
 
     dpsl=pandas.DataFrame()  
     #avg_list=[]
     dpcc=pandas.DataFrame()
+    mpc_obs='568'
     num=0
     for name in source_name_list:
         ra_list=[]
         dec_list=[]
         dpsl.loc[num,'Source Name']=name
-        try:
-            #Horizons works too. For example,
-            #dpsl.loc[num , 'Moving object- Abs Mag ']= float(Horizons(id=dpsl.loc[num,'Source Name']).ephemerides()['H'])
-            dpsl.loc[num,'Moving obj- Abs Mag ']= float(SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['H'])
-            dpsl.loc[num,'Moving obj- Diameter ']= SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['diameter']
-            dpsl.loc[num,'Moving obj- Diameter_sig']= SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['diameter_sig']
-            dpsl.loc[num,'Moving obj- Rotation period ']= SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['rot_per']
-        except:
-            dpsl.loc[num,'Moving obj- Abs Mag ']='N/A'                    
-            dpsl.loc[num,'Moving obj- Diameter ']= 'N/A'
-            dpsl.loc[num,'Moving obj- Diameter_sig']= 'N/A'
-            dpsl.loc[num,'Moving obj- Rotation period ']= 'N/A'
+        
+        if dpcopy.loc[index_list_source[num], 'Object Type']== 'moving':
+            
+            try:
+                SBDB.query(dpsl.loc[num, 'Source Name'])['message']
+                time=Time(time_list[num])
+                proper_coord=splat.properCoordinates(coord_list[num])
+                center=SkyCoord(int(proper_coord.ra.deg), int(proper_coord.dec.deg), unit='deg')
+                sbid=SBIdent(mpc_obs, time, center, maglim=20, hwidth=1)
+                obj_name=sbid.results[0]['Object name']
+                id_name=str(re.findall(r'\d+',obj_name )[0])
+                dpsl.loc[num,'Moving obj- Abs Mag ']= float(SBDB.query(id_name, phys=True)['phys_par']['H'])
+                dpsl.loc[num,'Moving obj- Diameter ']= SBDB.query(id_name, phys=True)['phys_par']['diameter']
+                dpsl.loc[num,'Moving obj- Diameter_sig']= SBDB.query(id_name, phys=True)['phys_par']['diameter_sig']
+                dpsl.loc[num,'Moving obj- Rotation period ']= SBDB.query(id_name, phys=True)['phys_par']['rot_per']
+            except:
+                try:
+                    dpsl.loc[num,'Moving obj- Abs Mag ']= float(SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['H'])
+                    dpsl.loc[num,'Moving obj- Diameter ']= SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['diameter']
+                    dpsl.loc[num,'Moving obj- Diameter_sig']= SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['diameter_sig']
+                    dpsl.loc[num,'Moving obj- Rotation period ']= SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['rot_per']
+                except:
+                    #dpsl.loc[num,'Moving obj- Abs Mag ']='N/A' (not sure if i need this one)                    
+                    dpsl.loc[num,'Moving obj- Diameter ']= 'N/A'
+                    dpsl.loc[num,'Moving obj- Diameter_sig']= 'N/A'
+                    dpsl.loc[num,'Moving obj- Rotation period ']= 'N/A'
             
         num=num+1
         for i,l in enumerate(dpcopy['Source Name']):
