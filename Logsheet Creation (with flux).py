@@ -626,7 +626,7 @@ def makelog(date):
     
     for number, lists in enumerate(target):
         name = lists[3]
-        rows = dp.loc[(dp['Source Name'].str.lower() == name) & (dp['Object Type'] == 'moving')]
+        rows = dp.loc[(dp['Source Name'].str.lower() == name) & (dp['Object Type'] == 'fixed')]
         if rows.empty:
             #INSERT STUFF FOR MOVING TARGET IDENTIFICATION HERE
             pass
