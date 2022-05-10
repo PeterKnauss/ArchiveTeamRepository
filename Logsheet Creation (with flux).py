@@ -242,6 +242,7 @@ def Score(std,obj):
 def Get_Scores(dictionary, dp):
     target = []
     calibrator = []
+    cals = []
     #This for loop pulls RA, Dec, UT time, and airmass for each object
     #and puts it in a list, that then gets added to either the target
     #or calibrator list defined above. Only does it for fixed sources
@@ -268,6 +269,10 @@ def Get_Scores(dictionary, dp):
                 target_diff = int(dictionary[i]['types']['target'][0]['end']) - int(dictionary[i]['types']['target'][0]['start'])
             except IndexError:
                 target_diff = None
+            try:
+                cals_time = str(dictionary[i]['types']['calibration'][0])
+            except IndexError:
+                continue
     
             #print(calibrator_diff)
             #print(target_diff)
@@ -291,6 +296,9 @@ def Get_Scores(dictionary, dp):
                 airmass = dictionary[i]['types']['target'][0]['airmass']
                 temp.append(str(airmass))
                 target.append(temp)
+
+            cals_hr = hours(cals_time)
+            cals.append(cals_hr)
 
     #Creates a 2D list of scores where the columns are calibrators and
     #the rows are targets
@@ -316,7 +324,17 @@ def Get_Scores(dictionary, dp):
             pair.append(False)
         Best.append(pair)
 
-    return Best, calibrator, target
+    select_cals = []
+    for i in target:
+        diffs = []
+        for j in cals:
+            aux = hours(i[2]) - j
+            diffs.append(aux)
+        a = min(diffs)
+        b = diffs.index(a)
+        select_cals.append(b)
+
+    return Best, calibrator, target, select_cals
 #-----------------------------------------------------------------------------#
 # Write dataframes to an excel sheet
 
