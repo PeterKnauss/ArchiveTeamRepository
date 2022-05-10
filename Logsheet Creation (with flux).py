@@ -649,7 +649,7 @@ def makelog(date):
             start_of_target = final[name]['types']['target'][0]['start']
             end_of_target = final[name]['types']['target'][0]['end']
             calibrator_index = best[number][1]
-            calibrator_name = calibrator[calibrator_index][3]
+            calibrator_name = fixed_calibrator[calibrator_index][3]
             start_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['start']
             end_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['end']
             calibrator_rows = dp.loc[(dp['Source Name'].str.lower() == calibrator_name)]
