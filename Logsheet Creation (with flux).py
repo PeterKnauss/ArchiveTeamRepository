@@ -199,7 +199,7 @@ def distance(Dec_1, Dec_2, RA_1, RA_2):
     a = math.sin((Dec_2-Dec_1)/2)**2
     b = math.cos(Dec_1)*math.cos(Dec_2)*math.sin((RA_2-RA_1)/2)**2
     c = math.sqrt(a+b)
-    dist = 0.8*abs(math.asin(c))
+    dist = (10/math.pi)*abs(math.asin(c))
     return(dist)
 
 #code used to turn UT time into hours
@@ -213,7 +213,7 @@ def hours(time):
 #generates the score form airmass and time
 def partial_score(std_vals, obj_vals):
     Peter = 0
-    scalers = [3,0.3]
+    scalers = [2/11,20]
     for i in range(len(scalers)):
         if std_vals[i] >= obj_vals[i]:
             aux = abs(std_vals[i]-obj_vals[i])
@@ -299,6 +299,7 @@ def Get_Scores(dictionary):
         Scores.append(row)
     
     #picks the best calibrator for each target based on its score
+    #and adds a warning is the score is too high
     Best = []
     for i in Scores:
         pair = []
@@ -306,6 +307,10 @@ def Get_Scores(dictionary):
         b = i.index(a)
         pair.append(a)
         pair.append(b)
+        if a >= 10:
+            pair.append(True)
+        else:
+            pair.append(False)
         Best.append(pair)
 
     return Best, calibrator, target
