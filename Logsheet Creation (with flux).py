@@ -239,67 +239,70 @@ def Score(std,obj):
     return score
 
 #gives 2D list of scores given some dictionary
-def Get_Scores(dictionary):
+def Get_Scores(dictionary, dp):
     target = []
     calibrator = []
     #This for loop pulls RA, Dec, UT time, and airmass for each object
     #and puts it in a list, that then gets added to either the target
-    #or calibrator list defined above
+    #or calibrator list defined above. Only does it for fixed sources
     for i in dictionary.keys():
-        temp = []
-        RA = dictionary[i]['RA'][0]
-        Dec = dictionary[i]['Dec'][0]
-        Time = dictionary[i]['UT Time'][0]
-        temp.append(str(RA))
-        temp.append(str(Dec))
-        temp.append(str(Time))
-        temp.append(str(i))
+        rows = dp.loc[(dp['Source Name'] == i) & (dp['Object Type'] == 'fixed')]
+        if rows.empty:
+            pass
+        else:
+            temp = []
+            RA = dictionary[i]['RA'][0]
+            Dec = dictionary[i]['Dec'][0]
+            Time = dictionary[i]['UT Time'][0]
+            temp.append(str(RA))
+            temp.append(str(Dec))
+            temp.append(str(Time))
+            temp.append(str(i))
 
     #logic used to identify if something is a target or a calibrator
-        try: 
-            calibrator_diff = int(dictionary[i]['types']['calibrator'][0]['end']) - int(dictionary[i]['types']['calibrator'][0]['start'])
-        except IndexError:
-            calibrator_diff = None
-        try: 
-            target_diff = int(dictionary[i]['types']['target'][0]['end']) - int(dictionary[i]['types']['target'][0]['start'])
-        except IndexError:
-            target_diff = None
+            try: 
+                calibrator_diff = int(dictionary[i]['types']['calibrator'][0]['end']) - int(dictionary[i]['types']['calibrator'][0]['start'])
+            except IndexError:
+                calibrator_diff = None
+            try: 
+                target_diff = int(dictionary[i]['types']['target'][0]['end']) - int(dictionary[i]['types']['target'][0]['start'])
+            except IndexError:
+                target_diff = None
     
-        #print(calibrator_diff)
-        #print(target_diff)
+            #print(calibrator_diff)
+            #print(target_diff)
 
-        if calibrator_diff == None:
-            airmass = dictionary[i]['types']['target'][0]['airmass']
-            temp.append(str(airmass))
-            target.append(temp)
+            if calibrator_diff == None:
+                airmass = dictionary[i]['types']['target'][0]['airmass']
+                temp.append(str(airmass))
+                target.append(temp)
         
-        elif target_diff == None:
-            airmass = dictionary[i]['types']['calibrator'][0]['airmass']
-            temp.append(str(airmass))
-            calibrator.append(temp)
+            elif target_diff == None:
+                airmass = dictionary[i]['types']['calibrator'][0]['airmass']
+                temp.append(str(airmass))
+                calibrator.append(temp)
 
-        elif calibrator_diff > target_diff:
-            airmass = dictionary[i]['types']['calibrator'][0]['airmass']
-            temp.append(str(airmass))
-            calibrator.append(temp)
+            elif calibrator_diff > target_diff:
+                airmass = dictionary[i]['types']['calibrator'][0]['airmass']
+                temp.append(str(airmass))
+                calibrator.append(temp)
             
-        elif target_diff > calibrator_diff:
-            airmass = dictionary[i]['types']['target'][0]['airmass']
-            temp.append(str(airmass))
-            target.append(temp)
+            elif target_diff > calibrator_diff:
+                airmass = dictionary[i]['types']['target'][0]['airmass']
+                temp.append(str(airmass))
+                target.append(temp)
 
     #Creates a 2D list of scores where the columns are calibrators and
     #the rows are targets
-    Scores = []
-    for i in target:
-        row = []
-        for j in calibrator:
-            a = Score(i,j)
-            row.append(a)
-        Scores.append(row)
+        Scores = []
+        for i in target:
+            row = []
+            for j in calibrator:
+                a = Score(i,j)
+                row.append(a)
+            Scores.append(row)
     
-    #picks the best calibrator for each target based on its score
-    #and adds a warning is the score is too high
+    #picks the best calibrator for each target based on its score and adds a warning is the score is too high
     Best = []
     for i in Scores:
         pair = []
@@ -518,7 +521,7 @@ def get_source_list(dp):
            
             else:
                 source_name_list.append(dpcopy.loc[i,'Source Name'])
-                time_list.append(str(date[0:4])+'-'+str(date[4:6])+'-'+str(date[6:])+' '+str(dpcopy.loc[i,'UT Time']))
+                #time_list.append(str(date[0:4])+'-'+str(date[4:6])+'-'+str(date[6:])+' '+str(dpcopy.loc[i,'UT Time'])) 
                 coord_list.append(str(dpcopy.loc[i,'RA'])+' '+str(dpcopy.loc[i,'Dec']))
                 index_list_source.append(i)
 
@@ -605,7 +608,7 @@ def makelog(date):
     final = create_dictionaries(dp)
     dp['Object Type'] = ['']*len(files)
     
-    #print(final)
+    print(final)
         
     for i,f in enumerate(files):
         source = dp.loc[i,'Source Name'].lower()
@@ -621,16 +624,26 @@ def makelog(date):
             
     dpsl=get_source_list(dp)
     
-    best, calibrator, target = Get_Scores(final)
-    #print('Best')
-    #print(best)
-    #print('calibrator')
-    #print(calibrator)
-    #print('target')
-    #print(target)
+    best, fixed_calibrator, fixed_target = Get_Scores(final, dp)
+    print('Best')
+    print(best)
+    print('calibrator')
+    print(fixed_calibrator)
+    print('target')
+    print(fixed_target)
     
-    for number, lists in enumerate(target):
+    for number, lists in enumerate(fixed_target):
         name = lists[3]
+        prefix = final[name]['prefix']
+        start_of_target = final[name]['types']['target'][0]['start']
+        end_of_target = final[name]['types']['target'][0]['end']
+        calibrator_index = best[number][1]
+        calibrator_name = fixed_calibrator[calibrator_index][3]
+        start_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['start']
+        end_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['end']
+        calibrator_rows = dp.loc[(dp['Source Name'].str.lower() == calibrator_name)]
+        B_mag = calibrator_rows['B Flux'][0]
+        V_mag = calibrator_rows['V Flux'][0]
         rows = dp.loc[(dp['Source Name'].str.lower() == name) & (dp['Object Type'] == 'fixed')]
         if rows.empty:
             #INSERT STUFF FOR MOVING TARGET IDENTIFICATION HERE
@@ -640,32 +653,32 @@ def makelog(date):
             start_of_target = final[name]['types']['target'][0]['start']
             end_of_target = final[name]['types']['target'][0]['end']
             calibrator_index = best[number][1]
-            calibrator_name = calibrator[calibrator_index][3]
+            calibrator_name = fixed_calibrator[calibrator_index][3]
             start_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['start']
             end_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['end']
             calibrator_rows = dp.loc[(dp['Source Name'].str.lower() == calibrator_name)]
             B_mag = calibrator_rows['B Flux'][0]
             V_mag = calibrator_rows['V Flux'][0]
             
-            print('Prefix'
-                  '%s'
+        print('Prefix'
+              '%s'
+              
+              'Object Range'
+              '%s - %s' 
+              
+              'Standard Range'
+              '%s - %s' 
+              
+              'Standard B Mag'
+              '%s'
+              
+              'Standard V Mag'
+              '%s'
+              
+              'File Name'
+              'spex_prism_%s_%s'
                   
-                  'Object Range'
-                  '%s - %s' 
-                  
-                  'Standard Range'
-                  '%s - %s' 
-                  
-                  'Standard B Mag'
-                  '%s'
-                  
-                  'Standard V Mag'
-                  '%s'
-                  
-                  'File Name'
-                  'spex_prism_%s_%s'
-                  
-                  (prefix, start_of_target, end_of_target, start_of_calibrator, end_of_calibrator, B_mag, V_mag, name, date))
+              (prefix, start_of_target, end_of_target, start_of_calibrator, end_of_calibrator, B_mag, V_mag, name, date))
                   
                   
     #dp, dpc, dpk = query_reference(dp, dpc)
