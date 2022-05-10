@@ -630,7 +630,6 @@ def makelog(date):
     
     for number, lists in enumerate(fixed_target):
         name = lists[3]
-<<<<<<< HEAD
         prefix = final[name]['prefix']
         start_of_target = final[name]['types']['target'][0]['start']
         end_of_target = final[name]['types']['target'][0]['end']
@@ -641,7 +640,6 @@ def makelog(date):
         calibrator_rows = dp.loc[(dp['Source Name'].str.lower() == calibrator_name)]
         B_mag = calibrator_rows['B Flux'][0]
         V_mag = calibrator_rows['V Flux'][0]
-=======
         rows = dp.loc[(dp['Source Name'].str.lower() == name) & (dp['Object Type'] == 'fixed')]
         if rows.empty:
             #INSERT STUFF FOR MOVING TARGET IDENTIFICATION HERE
@@ -657,7 +655,6 @@ def makelog(date):
             calibrator_rows = dp.loc[(dp['Source Name'].str.lower() == calibrator_name)]
             B_mag = calibrator_rows['B Flux'][0]
             V_mag = calibrator_rows['V Flux'][0]
->>>>>>> cbcd851786b960c4ef25bf7122be27b559e6e38f
             
         print('Prefix'
               '%s'
