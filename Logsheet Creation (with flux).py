@@ -270,7 +270,8 @@ def Get_Scores(dictionary, dp):
             except IndexError:
                 target_diff = None
             try:
-                cals_time = str(dictionary[i]['types']['calibration'][0])
+                if len(dictionary[i]['types']['calibration']) != 0:
+                    cals_time = dictionary[i]['UT Time'][0]
             except IndexError:
                 continue
     
