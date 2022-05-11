@@ -459,7 +459,7 @@ def create_dictionaries(dp):
             add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, ra_first, ra_old, dec_first, dec_old, ut_first, ut_old)
 
             # Start a new batch
-            batch = {'calibrator': [], 'target': []}
+            batch = {'calibration': [], 'calibrator': [], 'target': []}
             ra_first = ra
             dec_first = dec
             ut_first = row['UT Time']
@@ -478,6 +478,8 @@ def create_dictionaries(dp):
         ut_old = ut
 
         # The actual smarts -- figure out what type the star is based on the Integration
+        if integration < 1:
+            type = 'calibration'
         if integration < 70:
             type = 'calibrator'
         else:
@@ -630,16 +632,6 @@ def makelog(date):
     
     for number, lists in enumerate(fixed_target):
         name = lists[3]
-        prefix = final[name]['prefix']
-        start_of_target = final[name]['types']['target'][0]['start']
-        end_of_target = final[name]['types']['target'][0]['end']
-        calibrator_index = best[number][1]
-        calibrator_name = fixed_calibrator[calibrator_index][3]
-        start_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['start']
-        end_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['end']
-        calibrator_rows = dp.loc[(dp['Source Name'].str.lower() == calibrator_name)]
-        B_mag = calibrator_rows['B Flux'][0]
-        V_mag = calibrator_rows['V Flux'][0]
         rows = dp.loc[(dp['Source Name'].str.lower() == name) & (dp['Object Type'] == 'fixed')]
         if rows.empty:
             #INSERT STUFF FOR MOVING TARGET IDENTIFICATION HERE
