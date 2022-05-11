@@ -564,21 +564,40 @@ def get_source_list(dp):
                 sbid=SBIdent(mpc_obs, time, center, maglim=20, hwidth=1)
                 obj_name=sbid.results[0]['Object name']
                 id_name=str(re.findall(r'\d+',obj_name )[0])
-                dpsl.loc[num,'Moving obj- Abs Mag ']= float(SBDB.query(id_name, phys=True)['phys_par']['H'])
-                dpsl.loc[num,'Moving obj- Diameter ']= SBDB.query(id_name, phys=True)['phys_par']['diameter']
-                dpsl.loc[num,'Moving obj- Diameter_sig']= SBDB.query(id_name, phys=True)['phys_par']['diameter_sig']
-                dpsl.loc[num,'Moving obj- Rotation period ']= SBDB.query(id_name, phys=True)['phys_par']['rot_per']
+                try:
+                    dpsl.loc[num,'Moving obj- Abs Mag ']= SBDB.query(id_name, phys=True)['phys_par']['H']
+                except:
+                    dpsl.loc[num,'Moving obj- Abs Mag ']='N/A'
+                try:
+                    dpsl.loc[num,'Moving obj- Diameter ']= SBDB.query(id_name, phys=True)['phys_par']['diameter']
+                except:
+                    dpsl.loc[num,'Moving obj- Diameter ']='N/A'
+                try:
+                    dpsl.loc[num,'Moving obj- Diameter_sig']= SBDB.query(id_name, phys=True)['phys_par']['diameter_sig']
+                except:
+                    dpsl.loc[num,'Moving obj- Diameter_sig']='N/A'
+                try:
+                    dpsl.loc[num,'Moving obj- Rotation period ']= SBDB.query(id_name, phys=True)['phys_par']['rot_per']
+                except:
+                    dpsl.loc[num,'Moving obj- Rotation period ']='N/A'
             except:
                 try:
-                    dpsl.loc[num,'Moving obj- Abs Mag ']= float(SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['H'])
+                    dpsl.loc[num,'Moving obj- Abs Mag ']= SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['H']
+                except:
+                    dpsl.loc[num,'Moving obj- Abs Mag ']='N/A'
+                try:
                     dpsl.loc[num,'Moving obj- Diameter ']= SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['diameter']
+                except:
+                    dpsl.loc[num,'Moving obj- Diameter ']= 'N/A'
+                try:
                     dpsl.loc[num,'Moving obj- Diameter_sig']= SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['diameter_sig']
+                except:
+                    dpsl.loc[num,'Moving obj- Diameter_sig']= 'N/A'
+                try:
                     dpsl.loc[num,'Moving obj- Rotation period ']= SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['rot_per']
                 except:
-                    #dpsl.loc[num,'Moving obj- Abs Mag ']='N/A' (not sure if i need this one)                    
-                    dpsl.loc[num,'Moving obj- Diameter ']= 'N/A'
-                    dpsl.loc[num,'Moving obj- Diameter_sig']= 'N/A'
                     dpsl.loc[num,'Moving obj- Rotation period ']= 'N/A'
+
             
         num=num+1
         for i,l in enumerate(dpcopy['Source Name']):
