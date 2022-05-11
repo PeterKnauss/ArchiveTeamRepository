@@ -516,7 +516,7 @@ def create_dictionaries(dp):
 
 ##############################################################################################
 
-def get_source_list(dp):
+def get_source_list(dp,date):
     source_name_list=[]
     dpc=pandas.DataFrame()
     time_list=[]
@@ -540,7 +540,7 @@ def get_source_list(dp):
            
             else:
                 source_name_list.append(dpcopy.loc[i,'Source Name'])
-                #time_list.append(str(date[0:4])+'-'+str(date[4:6])+'-'+str(date[6:])+' '+str(dpcopy.loc[i,'UT Time'])) 
+                time_list.append(str(date[0:4])+'-'+str(date[4:6])+'-'+str(date[6:])+' '+str(dpcopy.loc[i,'UT Time'])) 
                 coord_list.append(str(dpcopy.loc[i,'RA'])+' '+str(dpcopy.loc[i,'Dec']))
                 index_list_source.append(i)
 
@@ -660,7 +660,7 @@ def makelog(date):
         if object_type == 'fixed':
             dp = magnitude_get(i, dp, old_name, f)
             
-    dpsl=get_source_list(dp)
+    dpsl=get_source_list(dp, str(date))
     
     best, fixed_calibrator, fixed_target = Get_Scores(final, dp)
     print('Best')
