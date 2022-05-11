@@ -83,6 +83,7 @@ def openfiles(date): #Opens and extracts data from hdu files
         raise ValueError('Cannot find folder {}'.format(folder))
     ####USED IN IDL#####files = glob.glob(folder+ '.fits')
     files = glob.glob(basefolder+'\\*.fits')
+    files = sorted(files, key=lambda _: re.sub(r'[^\d]', '', _)[-4:])
     if len(files) == 0: 
         raise ValueError('Cannot find any .fits data files in {}'
                          .format(folder+'/data/'))
@@ -119,15 +120,15 @@ def magnitude_get(i, dp, old_name, f):
                     dp.loc[i,'Spectral Type'] = 'N/A'
                 else:
                     if 'arc' in f:
-                        dp.loc[i,'Spectral Type'] = 'None'
+                        dp.loc[i,'Spectral Type'] = ''
                     elif 'flat' in f:
-                        dp.loc[i,'Spectral Type'] = 'None'
+                        dp.loc[i,'Spectral Type'] = ''
                     else:
                         dp.loc[i,'Spectral Type'] = query.loc[0,'SP_TYPE']
                 if 'arc' in f:
-                    dp.loc[i,'%s Flux' %mag]='None'
+                    dp.loc[i,'%s Flux' %mag]=''
                 elif 'flat' in f:
-                    dp.loc[i,'%s Flux' %mag]='None'
+                    dp.loc[i,'%s Flux' %mag]=''
                 else:
                     if mag in ['B','V']:
   
@@ -249,7 +250,12 @@ def Get_Scores(dictionary, dp):
     for i in dictionary.keys():
         rows = dp.loc[(dp['Source Name'] == i) & (dp['Object Type'] == 'fixed')]
         if rows.empty:
-            pass
+            if 'flatlamp' in i:
+                cals_time = dictionary[i]['UT Time'][0]
+                cals_hr = hours(cals_time)
+                cals.append(cals_hr)
+            else:
+                pass
         else:
             temp = []
             RA = dictionary[i]['RA'][0]
@@ -269,15 +275,9 @@ def Get_Scores(dictionary, dp):
                 target_diff = int(dictionary[i]['types']['target'][0]['end']) - int(dictionary[i]['types']['target'][0]['start'])
             except IndexError:
                 target_diff = None
-            try:
-                if len(dictionary[i]['types']['calibration']) != 0:
-                    cals_time = dictionary[i]['UT Time'][0]
-            except IndexError:
-                continue
     
             #print(calibrator_diff)
             #print(target_diff)
-
             if calibrator_diff == None:
                 airmass = dictionary[i]['types']['target'][0]['airmass']
                 temp.append(str(airmass))
@@ -297,9 +297,6 @@ def Get_Scores(dictionary, dp):
                 airmass = dictionary[i]['types']['target'][0]['airmass']
                 temp.append(str(airmass))
                 target.append(temp)
-
-            cals_hr = hours(cals_time)
-            cals.append(cals_hr)
 
     #Creates a 2D list of scores where the columns are calibrators and
     #the rows are targets
@@ -412,21 +409,25 @@ def moving_fixed(final, source):
 ###############################################################################
 # Create Batches
 
-def add_batch(source, batch, final, prefix, airmass, ra_first, ra_last, dec_first, dec_last, ut_first, ut_last):
+def add_batch(source, batch, final, prefix, airmass, calibration_number, ra_first, ra_last, dec_first, dec_last, ut_first, ut_last):
 
     # If we haven't see this Source before, create a place for it
     if not final.get(source):
-        final[source] = {'types': {'calibrator': [], 'target': []}}
+        final[source] = {'types': {'calibration': [], 'calibrator': [], 'target': []}}
 
     # Add the data to the final
-    for type in ['calibrator', 'target']:
+    for type in ['calibration', 'calibrator', 'target']:
         if batch[type]:
             final[source]['types'][type].append({'start': batch[type][0], 'end': batch[type][-1], 'airmass': airmass})
     final[source]['prefix'] = prefix
     final[source]['RA'] = [ra_first, ra_last]
     final[source]['Dec'] = [dec_first, dec_last]
     final[source]['UT Time'] = [ut_first, ut_last]
+    if len(final[source]['types']['calibration']) != 0:
+        calibration_number = calibration_number + 1
 
+    return calibration_number
+    
 #-----------------------------------------------------------------------------#
 # Create Dictionaries for each batch
 
@@ -444,6 +445,7 @@ def create_dictionaries(dp):
     dec_first = None
     ut_first = None
     ut_old = None
+    calibration_number = 1
 
     # Filter data by Mode
     data = []
@@ -466,9 +468,8 @@ def create_dictionaries(dp):
         if source == 'Object_Observed':
             source = row['File'][0:-11]
         if source in ['flat field', 'arclamp']:
-            continue
-            #source = 'flatlamp'
-            #prefix = 'flat/arc'
+            source = 'flatlamp %s' % calibration_number
+            prefix = 'flat/arc %s' % calibration_number
         ra = row['RA']
         dec = row['Dec']
         integration = row['Integration']
@@ -479,8 +480,8 @@ def create_dictionaries(dp):
         if source_old is not None and source.lower() != source_old.lower():
 
             # Add this batch to the final result
-            add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, ra_first, ra_old, dec_first, dec_old, ut_first, ut_old)
-
+            calibration_number = add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, calibration_number, ra_first, ra_old, dec_first, dec_old, ut_first, ut_old)
+            
             # Start a new batch
             batch = {'calibration': [], 'calibrator': [], 'target': []}
             ra_first = ra
@@ -503,7 +504,7 @@ def create_dictionaries(dp):
         # The actual smarts -- figure out what type the star is based on the Integration
         if integration < 1:
             type = 'calibration'
-        if integration < 70:
+        elif integration < 70:
             type = 'calibrator'
         else:
             type = 'target'
@@ -512,7 +513,7 @@ def create_dictionaries(dp):
         batch[type].append(number)
 
     # Add the last batch to the final
-    add_batch(source.lower(), batch, final, prefix, airmass, ra_first, ra, dec_first, dec, ut_first, ut_old)
+    add_batch(source.lower(), batch, final, prefix, airmass, calibration_number, ra_first, ra, dec_first, dec, ut_first, ut_old)
 
     return final
 
@@ -648,7 +649,7 @@ def makelog(date):
     final = create_dictionaries(dp)
     dp['Object Type'] = ['']*len(files)
     
-    print(final)
+    #print(final)
         
     for i,f in enumerate(files):
         source = dp.loc[i,'Source Name'].lower()
@@ -664,13 +665,11 @@ def makelog(date):
             
     dpsl=get_source_list(dp, str(date))
     
-    best, fixed_calibrator, fixed_target = Get_Scores(final, dp)
-    print('Best')
-    print(best)
-    print('calibrator')
-    print(fixed_calibrator)
-    print('target')
-    print(fixed_target)
+    best, fixed_calibrator, fixed_target, cals = Get_Scores(final, dp)
+    #print('Best:', best)
+    #print('calibrator:', fixed_calibrator)
+    #print('target:', fixed_target)
+    #print('Selected Cals:', cals)
     
     for number, lists in enumerate(fixed_target):
         name = lists[3]
@@ -708,7 +707,7 @@ def makelog(date):
               'File Name'
               'spex_prism_%s_%s'
                   
-              (prefix, start_of_target, end_of_target, start_of_calibrator, end_of_calibrator, B_mag, V_mag, name, date))
+              % (prefix, start_of_target, end_of_target, start_of_calibrator, end_of_calibrator, B_mag, V_mag, name, date))
                   
                   
     #dp, dpc, dpk = query_reference(dp, dpc)
