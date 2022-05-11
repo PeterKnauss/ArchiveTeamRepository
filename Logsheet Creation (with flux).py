@@ -199,7 +199,7 @@ def distance(Dec_1, Dec_2, RA_1, RA_2):
     a = math.sin((Dec_2-Dec_1)/2)**2
     b = math.cos(Dec_1)*math.cos(Dec_2)*math.sin((RA_2-RA_1)/2)**2
     c = math.sqrt(a+b)
-    dist = 0.8*abs(math.asin(c))
+    dist = (10/math.pi)*abs(math.asin(c))
     return(dist)
 
 #code used to turn UT time into hours
@@ -213,7 +213,7 @@ def hours(time):
 #generates the score form airmass and time
 def partial_score(std_vals, obj_vals):
     Peter = 0
-    scalers = [3,0.3]
+    scalers = [2/11,20]
     for i in range(len(scalers)):
         if std_vals[i] >= obj_vals[i]:
             aux = abs(std_vals[i]-obj_vals[i])
@@ -242,6 +242,7 @@ def Score(std,obj):
 def Get_Scores(dictionary, dp):
     target = []
     calibrator = []
+    cals = []
     #This for loop pulls RA, Dec, UT time, and airmass for each object
     #and puts it in a list, that then gets added to either the target
     #or calibrator list defined above. Only does it for fixed sources
@@ -268,6 +269,11 @@ def Get_Scores(dictionary, dp):
                 target_diff = int(dictionary[i]['types']['target'][0]['end']) - int(dictionary[i]['types']['target'][0]['start'])
             except IndexError:
                 target_diff = None
+            try:
+                if len(dictionary[i]['types']['calibration']) != 0:
+                    cals_time = dictionary[i]['UT Time'][0]
+            except IndexError:
+                continue
     
             #print(calibrator_diff)
             #print(target_diff)
@@ -292,6 +298,9 @@ def Get_Scores(dictionary, dp):
                 temp.append(str(airmass))
                 target.append(temp)
 
+            cals_hr = hours(cals_time)
+            cals.append(cals_hr)
+
     #Creates a 2D list of scores where the columns are calibrators and
     #the rows are targets
         Scores = []
@@ -302,17 +311,31 @@ def Get_Scores(dictionary, dp):
                 row.append(a)
             Scores.append(row)
     
-    #picks the best calibrator for each target based on its score
-        Best = []
-        for i in Scores:
-            pair = []
-            a = min(i)
-            b = i.index(a)
-            pair.append(a)
-            pair.append(b)
-            Best.append(pair)
+    #picks the best calibrator for each target based on its score and adds a warning is the score is too high
+    Best = []
+    for i in Scores:
+        pair = []
+        a = min(i)
+        b = i.index(a)
+        pair.append(a)
+        pair.append(b)
+        if a >= 10:
+            pair.append(True)
+        else:
+            pair.append(False)
+        Best.append(pair)
 
-    return Best, calibrator, target
+    select_cals = []
+    for i in target:
+        diffs = []
+        for j in cals:
+            aux = hours(i[2]) - j
+            diffs.append(aux)
+        a = min(diffs)
+        b = diffs.index(a)
+        select_cals.append(b)
+
+    return Best, calibrator, target, select_cals
 #-----------------------------------------------------------------------------#
 # Write dataframes to an excel sheet
 
@@ -495,7 +518,7 @@ def create_dictionaries(dp):
 
 ##############################################################################################
 
-def get_source_list(dp):
+def get_source_list(dp,date):
     source_name_list=[]
     dpc=pandas.DataFrame()
     time_list=[]
@@ -519,7 +542,7 @@ def get_source_list(dp):
            
             else:
                 source_name_list.append(dpcopy.loc[i,'Source Name'])
-                #time_list.append(str(date[0:4])+'-'+str(date[4:6])+'-'+str(date[6:])+' '+str(dpcopy.loc[i,'UT Time'])) 
+                time_list.append(str(date[0:4])+'-'+str(date[4:6])+'-'+str(date[6:])+' '+str(dpcopy.loc[i,'UT Time'])) 
                 coord_list.append(str(dpcopy.loc[i,'RA'])+' '+str(dpcopy.loc[i,'Dec']))
                 index_list_source.append(i)
 
@@ -543,21 +566,40 @@ def get_source_list(dp):
                 sbid=SBIdent(mpc_obs, time, center, maglim=20, hwidth=1)
                 obj_name=sbid.results[0]['Object name']
                 id_name=str(re.findall(r'\d+',obj_name )[0])
-                dpsl.loc[num,'Moving obj- Abs Mag ']= float(SBDB.query(id_name, phys=True)['phys_par']['H'])
-                dpsl.loc[num,'Moving obj- Diameter ']= SBDB.query(id_name, phys=True)['phys_par']['diameter']
-                dpsl.loc[num,'Moving obj- Diameter_sig']= SBDB.query(id_name, phys=True)['phys_par']['diameter_sig']
-                dpsl.loc[num,'Moving obj- Rotation period ']= SBDB.query(id_name, phys=True)['phys_par']['rot_per']
+                try:
+                    dpsl.loc[num,'Moving obj- Abs Mag ']= SBDB.query(id_name, phys=True)['phys_par']['H']
+                except:
+                    dpsl.loc[num,'Moving obj- Abs Mag ']='N/A'
+                try:
+                    dpsl.loc[num,'Moving obj- Diameter ']= SBDB.query(id_name, phys=True)['phys_par']['diameter']
+                except:
+                    dpsl.loc[num,'Moving obj- Diameter ']='N/A'
+                try:
+                    dpsl.loc[num,'Moving obj- Diameter_sig']= SBDB.query(id_name, phys=True)['phys_par']['diameter_sig']
+                except:
+                    dpsl.loc[num,'Moving obj- Diameter_sig']='N/A'
+                try:
+                    dpsl.loc[num,'Moving obj- Rotation period ']= SBDB.query(id_name, phys=True)['phys_par']['rot_per']
+                except:
+                    dpsl.loc[num,'Moving obj- Rotation period ']='N/A'
             except:
                 try:
-                    dpsl.loc[num,'Moving obj- Abs Mag ']= float(SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['H'])
+                    dpsl.loc[num,'Moving obj- Abs Mag ']= SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['H']
+                except:
+                    dpsl.loc[num,'Moving obj- Abs Mag ']='N/A'
+                try:
                     dpsl.loc[num,'Moving obj- Diameter ']= SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['diameter']
+                except:
+                    dpsl.loc[num,'Moving obj- Diameter ']= 'N/A'
+                try:
                     dpsl.loc[num,'Moving obj- Diameter_sig']= SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['diameter_sig']
+                except:
+                    dpsl.loc[num,'Moving obj- Diameter_sig']= 'N/A'
+                try:
                     dpsl.loc[num,'Moving obj- Rotation period ']= SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['rot_per']
                 except:
-                    #dpsl.loc[num,'Moving obj- Abs Mag ']='N/A' (not sure if i need this one)                    
-                    dpsl.loc[num,'Moving obj- Diameter ']= 'N/A'
-                    dpsl.loc[num,'Moving obj- Diameter_sig']= 'N/A'
                     dpsl.loc[num,'Moving obj- Rotation period ']= 'N/A'
+
             
         num=num+1
         for i,l in enumerate(dpcopy['Source Name']):
@@ -620,7 +662,7 @@ def makelog(date):
         if object_type == 'fixed':
             dp = magnitude_get(i, dp, old_name, f)
             
-    dpsl=get_source_list(dp)
+    dpsl=get_source_list(dp, str(date))
     
     best, fixed_calibrator, fixed_target = Get_Scores(final, dp)
     print('Best')
