@@ -248,13 +248,30 @@ def Get_Scores(dictionary, dp):
     #and puts it in a list, that then gets added to either the target
     #or calibrator list defined above. Only does it for fixed sources
     for i in dictionary.keys():
-        rows = dp.loc[(dp['Source Name'] == i) & (dp['Object Type'] == 'fixed')]
+        rows = dp.loc[(dp['Source Name'].str.lower() == i) & (dp['Object Type'] == 'fixed')]
         if rows.empty:
             if 'flatlamp' in i:
+                temp = []
                 cals_time = dictionary[i]['UT Time'][0]
                 cals_hr = hours(cals_time)
-                cals.append(cals_hr)
+                temp.append(cals_hr)
+                temp.append(i)
+                cals.append(temp)
             else:
+                temp = []
+                RA = dictionary[i]['RA'][0]
+                Dec = dictionary[i]['Dec'][0]
+                Time = dictionary[i]['UT Time'][0]
+                temp.append(str(RA))
+                temp.append(str(Dec))
+                temp.append(str(Time))
+                temp.append(str(i))
+                try:
+                    airmass = dictionary[i]['types']['target'][0]['airmass']
+                except IndexError:
+                    airmass = dictionary[i]['types']['calibrator'][0]['airmass']
+                temp.append(str(airmass))
+                target.append(temp)
                 pass
         else:
             temp = []
@@ -275,7 +292,7 @@ def Get_Scores(dictionary, dp):
                 target_diff = int(dictionary[i]['types']['target'][0]['end']) - int(dictionary[i]['types']['target'][0]['start'])
             except IndexError:
                 target_diff = None
-    
+            
             #print(calibrator_diff)
             #print(target_diff)
             if calibrator_diff == None:
@@ -325,12 +342,17 @@ def Get_Scores(dictionary, dp):
     select_cals = []
     for i in target:
         diffs = []
+        temp = []
         for j in cals:
-            aux = hours(i[2]) - j
+            aux = abs(hours(i[2]) - j[0])
             diffs.append(aux)
         a = min(diffs)
         b = diffs.index(a)
-        select_cals.append(b)
+        cals_name = cals[b][1]
+        temp.append(b)
+        temp.append(cals_name)
+        temp.append(i[3])
+        select_cals.append(temp)
 
     return Best, calibrator, target, select_cals
 #-----------------------------------------------------------------------------#
@@ -383,7 +405,6 @@ def moving_fixed(final, source):
     time_diff = last_time - first_time
     
     #print(time_diff)
-    
     ra_time_diff = ra_diff / time_diff
     dec_time_diff = dec_diff / time_diff
     
@@ -665,50 +686,64 @@ def makelog(date):
             
     dpsl=get_source_list(dp, str(date))
     
-    best, fixed_calibrator, fixed_target, cals = Get_Scores(final, dp)
+    best, calibrators, targets, cals = Get_Scores(final, dp)
     #print('Best:', best)
-    #print('calibrator:', fixed_calibrator)
-    #print('target:', fixed_target)
+    #print('calibrator:', calibrators)
+    #print('target:', targets)
     #print('Selected Cals:', cals)
     
-    for number, lists in enumerate(fixed_target):
+    for number, lists in enumerate(targets):
         name = lists[3]
-        rows = dp.loc[(dp['Source Name'].str.lower() == name) & (dp['Object Type'] == 'fixed')]
-        if rows.empty:
+        #rows = dp.loc[(dp['Source Name'].str.lower() == name) & (dp['Object Type'] == 'fixed')]
+        #if rows.empty:
             #INSERT STUFF FOR MOVING TARGET IDENTIFICATION HERE
-            pass
-        else:
-            prefix = final[name]['prefix']
+            #pass
+        #else:
+        prefix = final[name]['prefix']
+        try:
             start_of_target = final[name]['types']['target'][0]['start']
+        except IndexError:
+            start_of_target = final[name]['types']['calibrator'][0]['start']
+        try:
             end_of_target = final[name]['types']['target'][0]['end']
-            calibrator_index = best[number][1]
-            calibrator_name = fixed_calibrator[calibrator_index][3]
-            start_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['start']
-            end_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['end']
-            calibrator_rows = dp.loc[(dp['Source Name'].str.lower() == calibrator_name)]
-            B_mag = calibrator_rows['B Flux'][0]
-            V_mag = calibrator_rows['V Flux'][0]
-            
-        print('Prefix'
-              '%s'
-              
-              'Object Range'
-              '%s - %s' 
-              
-              'Standard Range'
-              '%s - %s' 
-              
-              'Standard B Mag'
-              '%s'
-              
-              'Standard V Mag'
-              '%s'
-              
-              'File Name'
-              'spex_prism_%s_%s'
-                  
-              % (prefix, start_of_target, end_of_target, start_of_calibrator, end_of_calibrator, B_mag, V_mag, name, date))
-                  
+        except IndexError:
+            end_of_target = final[name]['types']['calibrator'][0]['end']
+        calibrator_index = best[number][1]
+        calibrator_name = calibrators[calibrator_index][3]
+        start_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['start']
+        end_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['end']
+        calibrator_rows = dp.loc[(dp['Source Name'].str.lower() == calibrator_name)]
+        B_mag = round(calibrator_rows['B Flux'].iloc[0],2)
+        V_mag = round(calibrator_rows['V Flux'].iloc[0],2)
+        calibration_name = cals[number][1]
+        start_of_calibration = final[calibration_name]['types']['calibration'][0]['start']
+        end_of_calibration = final[calibration_name]['types']['calibration'][0]['end']
+        
+        #print('---------------------------------')
+        #print('Source Name:', name)
+        #print('Calibrator Name:', calibrator_name)
+        #print('Calibration Name:', calibration_name)
+        #print('Prefix:', prefix)
+        #print('Object Range:', start_of_target, '-', end_of_target)
+        #print('Standard Range:',start_of_calibrator, '-', end_of_calibrator)
+        #print('Calibration Range:', start_of_calibration, '-', end_of_calibration)
+        #print('Standard B Mag:', B_mag)
+        #print('Standard V Mag:', V_mag)
+        #print('File Name:', 'spex_prism_%s_%s' % (name, date))
+        
+        line = '{0}-{1}   |  {2}    |  {3}-{4}  |  {2}    |  {5}-{6}  | 2.5,2,2.2,2,0  | 1.4-1.8       | 0              | 1-2           | 1              | {7}       | {8}       |   1        | 1.75-2.05   | spex_prism_{9}_{10}      |  0           |'.format(start_of_calibration, end_of_calibration, prefix, start_of_calibrator, end_of_calibrator, start_of_target, end_of_target, B_mag, V_mag, name, date)
+        print(line)
+        input_file = 'C:\\Users\\peter\\Desktop\\input.txt'
+        if number == 0:
+            with open(input_file,'w') as file:
+                file.write(line)
+                file.write('\n')
+        else:
+            with open(input_file,'a') as file:
+                file.write(line)
+                file.write('\n')
+    print('input file written to {}'.format(input_file))
+
                   
     #dp, dpc, dpk = query_reference(dp, dpc)
 
@@ -723,4 +758,4 @@ def makelog(date):
 
 #-----------------------------------------------------------------------------#
 
-makelog(10/15/2001)
+makelog(20011015)
