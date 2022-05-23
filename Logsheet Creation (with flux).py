@@ -15,7 +15,7 @@ import glob
 import os
 import sys
 from astropy.io import fits
-from openpyxl import load_workbook
+from astropy.io import ascii
 import numpy as np
 import math
 import re
@@ -23,6 +23,7 @@ from astroquery.jplsbdb import SBDB
 from sbident import SBIdent # pip install git+https://github.com/bengebre/sbident
 from astropy.time import Time
 from astropy.coordinates import SkyCoord
+from prettytable import PrettyTable, NONE #pip install prettytable
 
 #-----------------------------------------------------------------------------#
 # Values for new and old columns
@@ -718,6 +719,9 @@ def makelog(date):
         calibration_name = cals[number][1]
         start_of_calibration = final[calibration_name]['types']['calibration'][0]['start']
         end_of_calibration = final[calibration_name]['types']['calibration'][0]['end']
+        calibration_range = '{0}-{1}'.format(start_of_calibration, end_of_calibration)
+        calibrator_range = '{0}-{1}'.format(start_of_calibrator, end_of_calibrator)
+        target_range = '{0}-{1}'.format(start_of_target, end_of_target)
         
         #print('---------------------------------')
         #print('Source Name:', name)
@@ -731,26 +735,34 @@ def makelog(date):
         #print('Standard V Mag:', V_mag)
         #print('File Name:', 'spex_prism_%s_%s' % (name, date))
         
-        line = '{0}-{1}   |  {2}    |  {3}-{4}  |  {2}    |  {5}-{6}  | 2.5,2,2.2,2,0  | 1.4-1.8       | 0              | 1-2           | 1              | {7}       | {8}       |   1        | 1.75-2.05   | spex_prism_{9}_{10}      |  0           |'.format(start_of_calibration, end_of_calibration, prefix, start_of_calibrator, end_of_calibrator, start_of_target, end_of_target, B_mag, V_mag, name, date)
-        print(line)
-        input_file = 'C:\\Users\\peter\\Desktop\\input.txt'
-        if number == 0:
-            with open(input_file,'w') as file:
-                file.write(line)
-                file.write('\n')
-        else:
-            with open(input_file,'a') as file:
-                file.write(line)
-                file.write('\n')
-    print('input file written to {}'.format(input_file))
+        if number == 0:   
+            final_table = PrettyTable()
+            final_table.field_names = ['cals', 'prefix1', 'obj', 'prefix2', 'std', 'ext. params',
+                       'obj scl range', 'obj shape flag', 'std scl range', 
+                       'std shape flag', 'std b mag', 'std v mag', 'shift flag', 
+                       'shift range', 'filename', 'force flag']
+        
+        final_table.add_row([calibration_range, prefix, target_range, prefix, 
+                             calibrator_range, '2.5,2,2.2,2,0', '1.4-1.8','0',
+                             '1-2','1', B_mag, V_mag, '1', '1.75-2.05', 
+                             'spex_prism_{0}_{1}'.format(name,date), '0'])
+    
+    #make final table look like how we need
+    final_table.header = False
+    final_table.hrules = NONE
+    
+    input_file = 'C:\\Users\\peter\\Desktop\\input.txt'
+    with open(input_file, 'a') as file:
+        file.write(str(final_table))
+        
+    print('input file written to {}'.format(final_table))
+    
 
-                  
     #dp, dpc, dpk = query_reference(dp, dpc)
 
     dp['Notes'] = ['']*len(files)
 
     #dpsl = source_list(final, dp)
-    
     
     writer(date, dp, dpsl)
     
