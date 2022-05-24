@@ -21,15 +21,18 @@ def create_folder(date):
     except FileNotFoundError:
         print('Missing folder : "reductions". Create a "reductions" folder !!')
     except FileExistError:
-        print("File/Folder already exist. Be careful,if you don't want to overwrite !!" )
+        print("File/Folder already exist. Be careful, you might overwrite !!" )
+        
     proc_path=os.path.join(parental_directory, proc_directory)
     cals_path=os.path.join(parental_directory, cals_directory)
     raw_path=os.path.join('/data/SpeX/', str(date))
-    # Check if data exist in raw_path
+    #Check if data exist in raw_path and if not prints a comment
     try: 
         os.mkdir(raw_path)
     except FileExistError:
-        print('File exists in raw folder')
+        print('File exists in raw folder, Good')
+    except FileNotFoundError:
+        print('No such file, Check your input date or file path again ')
     #----------------------------------------------------------------------
     #This part of the code is for creating/copying raw'data' files in the 'date' folder if needed on remote machine.
     #Most likely don't need this part
@@ -39,6 +42,11 @@ def create_folder(date):
     #shutil.copyfile(raw_path, data)
     
     #----------------------------------------------------------------------
-    # can use os.mkdir() or os.makedirs()
-    os.makedirs(proc_path)
-    os.makedirs(cals_path)
+    # using mkdir() so it doesn't create folders by accident 
+    try:
+        os.mkdir(proc_path)
+        os.mkdir(cals_path)
+    except FileNotFoundError:
+        print('File not Found, Something went wrong, Please check file path or previous comments for missing folders !')
+    except FileExistError:
+        print('File already exist, you might overwrite !!')
