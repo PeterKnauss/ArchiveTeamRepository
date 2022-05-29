@@ -605,6 +605,10 @@ def get_source_list(dp,date):
                     dpsl.loc[num,'Moving obj- Rotation period ']= SBDB.query(id_name, phys=True)['phys_par']['rot_per']
                 except:
                     dpsl.loc[num,'Moving obj- Rotation period ']='N/A'
+                try:
+                    dpsl.loc[num,'Moving obj- SPK-ID']=SBDB.query(id_name)['object']['spkid']
+                except:
+                    dpsl.loc[num,'Moving obj- SPK-ID']='N/A'
             except:
                 try:
                     dpsl.loc[num,'Moving obj- Abs Mag ']= SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['H']
@@ -622,6 +626,10 @@ def get_source_list(dp,date):
                     dpsl.loc[num,'Moving obj- Rotation period ']= SBDB.query(dpsl.loc[num,'Source Name'], phys=True)['phys_par']['rot_per']
                 except:
                     dpsl.loc[num,'Moving obj- Rotation period ']= 'N/A'
+                try:
+                    dpsl.loc[num,'Moving obj- SPK-ID']=SBDB.query(dpsl.loc[num,'Source Name'])['object']['spkid']
+                except:
+                    dpsl.loc[num,'Moving obj- SPK-ID']='N/A'
 
             
         num=num+1
