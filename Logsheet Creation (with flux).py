@@ -755,7 +755,7 @@ def makelog(date):
     with open(input_file, 'a') as file:
         file.write(str(final_table))
         
-    print('input file written to {}'.format(final_table))
+    print('input file written to {}'.format(input_file))
     
 
     #dp, dpc, dpk = query_reference(dp, dpc)
