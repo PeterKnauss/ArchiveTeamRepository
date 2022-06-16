@@ -23,7 +23,9 @@ from astroquery.jplsbdb import SBDB
 from sbident import SBIdent # pip install git+https://github.com/bengebre/sbident
 from astropy.time import Time
 from astropy.coordinates import SkyCoord
-from prettytable import PrettyTable, NONE #pip install prettytable
+from prettytable import PrettyTable, NONE, HEADER #pip install prettytable
+from tkinter import *
+from tkinter import filedialog
 
 #-----------------------------------------------------------------------------#
 # Values for new and old columns
@@ -67,18 +69,12 @@ cols_old = {
 #Log Creation Subroutines#
 
 ###############################################################################
-# Original Settings Required
-
-# basefolder is where you downloaded the fits files
-# For example:
-basefolder='C:\\Users\\peter\\Desktop\\Raw Data'
-magnitudes=['B','V','J','H','K']
 
 #-----------------------------------------------------------------------------#
 # Opens and extracts data from hdu files
 
 def openfiles(date): #Opens and extracts data from hdu files
-    folder = basefolder
+    folder = basefolder.replace('/','//')
     #####USED IN IDL#####folder = basefolder+'/{}/'.format(date)
     if os.path.isdir(folder) == False: 
         raise ValueError('Cannot find folder {}'.format(folder))
@@ -757,10 +753,21 @@ def makelog(date):
     
     #make final table look like how we need
     final_table.header = False
-    final_table.hrules = NONE
+    final_table.hrules = HEADER
     
     input_file = 'C:\\Users\\peter\\Desktop\\input.txt'
-    with open(input_file, 'a') as file:
+    with open(input_file, 'w') as file:
+        if cols == cols_old: 
+            instrument = 'SpeX'
+        if cols == cols_new: 
+            instrument = 'uSpeX'
+        lines = ['#','# instrument = '+instrument,'# rawpath = ','# calpath = ','# procpath = ','#']
+        file.write('# \n')
+        file.write('# instrument = '+instrument+'\n')
+        file.write('# rawpath = \n')
+        file.write('# calpath = \n')
+        file.write('# procpath = \n')
+        file.write('# \n')
         file.write(str(final_table))
         
     print('input file written to {}'.format(input_file))
@@ -778,4 +785,26 @@ def makelog(date):
 
 #-----------------------------------------------------------------------------#
 
-makelog(20011015)
+magnitudes=['B','V','J','H','K']
+
+dirs = []
+root = Tk()
+root.attributes('-topmost',True)
+root.geometry('200x100')
+def select():
+    root.directory = filedialog.askdirectory()
+    dirs.append(root.directory)
+    return root.directory
+select_btn = Button(root, text='Select',command=select)
+close_btn = Button(root, text = 'Exit', command=root.destroy)
+select_btn.place(relx = 0.5, rely = 0.35, anchor=CENTER)
+close_btn.place(relx = 0.5, rely = 0.65, anchor=CENTER)
+root.mainloop()
+print(dirs)
+
+for directory in dirs:
+    basefolder = str(directory)
+    print('')
+    print(basefolder)
+    makelog(20011015)    
+    
