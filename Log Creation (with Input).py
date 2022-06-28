@@ -15,6 +15,7 @@ import glob
 import os
 import sys
 import errno
+import shutil
 from astropy.io import fits
 from astropy.io import ascii
 import numpy as np
@@ -597,7 +598,7 @@ def create_folder(date):
         if err.errno == errno.ENOENT:
             print('FileNotFound: %s does not exist in raw folder' %date)
         if err.errno == errno.EEXIST:
-            print('FileExistError: File exist in raw folder')
+            print('FileExist: Good ! File exist in raw folder.')
         else:
             raise
     # Making the folders
@@ -607,7 +608,14 @@ def create_folder(date):
         if err.errno == errno.ENOENT:
             print('FileNotFound : Missing some folders, please check your path')
         if err.errno == errno.EEXIST:
-            print('FileExistError : File exist, might overwrite !!')
+            print('FileExistError : File exist, Do you want to OVERWRITE proc folder? Please enter yes or no: ')
+            x=input()
+            if 'yes' in x.lower():
+                shutil.rmtree(proc_path)
+                os.makedirs(proc_path)
+                print('File Renewed')
+            else:
+                print('Nothing Changed')
         else:
             raise
 
@@ -617,7 +625,12 @@ def create_folder(date):
         if err.errno == errno.ENOENT:
             print('FileNotFound : Missing some folders, please check your path')
         if err.errno == errno.EEXIST:
-            print('FileExistError : File exist, might overwrite !!')
+            print('FileExistError : File exist, Do you want to OVERWRITE cals folder? Please enter yes or no: ')
+            y=input()
+            if 'yes' in y.lower():
+                shutil.rmtree(cals_path)
+                os.makedirs(cals_path)
+                print('File Renewed')
         else:
             raise
 	
@@ -653,8 +666,7 @@ def get_source_list(dp,date):
                 coord_list.append(str(dpcopy.loc[i,'RA'])+' '+str(dpcopy.loc[i,'Dec']))
                 index_list_source.append(i)
 
-    dpsl=pandas.DataFrame()  
-    #avg_list=[]
+    dpsl=pandas.DataFrame()
     dpcc=pandas.DataFrame()
     mpc_obs='568'
     num=0
@@ -662,7 +674,13 @@ def get_source_list(dp,date):
         ra_list=[]
         dec_list=[]
         dpsl.loc[num,'Source Name']=name
+        dpsl.loc[num,'Object Type']=''
         
+        for i,k in enumerate(dpcopy['Source Name']):
+            if name == dpcopy.loc[i,'Source Name']:
+                if bool(dpsl.loc[num,'Object Type'])== False:
+                    dpsl.loc[num, 'Object Type']=dpcopy.loc[i,'Object Type']
+
         if dpcopy.loc[index_list_source[num], 'Object Type']== 'moving':
             
             try:
