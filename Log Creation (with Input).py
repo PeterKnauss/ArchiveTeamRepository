@@ -675,7 +675,7 @@ def get_source_list(dp,date):
         dec_list=[]
         dpsl.loc[num,'Source Name']=name
         dpsl.loc[num,'Object Type']=''
-        
+        dpsl.loc[num,'Date']=str(date[0:4])+'-'+str(date[4:6])+'-'+str(date[6:])
         for i,k in enumerate(dpcopy['Source Name']):
             if name == dpcopy.loc[i,'Source Name']:
                 if bool(dpsl.loc[num,'Object Type'])== False:
