@@ -375,15 +375,7 @@ def writer(proc_path, date, dp, dpsl):
         dpsl=dpsl.drop(['DEC','RA'], axis=1)
         dpsl.reset_index(inplace=True,drop=True)
         dpsl.to_excel(writer, sheet_name='Source List', startrow=1, header=False, index=False )
-        worksheet=writer.sheets['Source List']
-        (max_row, max_col)=dpsl.shape
-        column_settings=[{'header': column} for column in dpsl.columns]
-        worksheet.add_table(0,0,max_row, 62, {"columns": column_settings})
         
-        #somehow in add_table it ignores the last few columns in the method above,
-        #it's 62 instead of max_col because it always subtracts 3 columns (plus 1 from indexing, hence 4)
-        #max_col here is 66. if 62 here is set to a higher integer value, add_table fails and returns orginial data
-        #here, the missing columns : Simbad R, I, and Z mag
         #Dropped columns : 'DEC' and 'RC' - since 'Coordinates' column already covered this info.
           
     print('log written to {}'.format(proc_path+'/logs_{}.xlsx'.format(date)))
