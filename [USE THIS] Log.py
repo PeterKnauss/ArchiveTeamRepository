@@ -372,8 +372,11 @@ def writer(proc_path, date, dp, dpsl):
         dp.sort_values('UT Time',inplace=True)
         dp.reset_index(inplace=True,drop=True)
         dp.to_excel(writer,sheet_name='Files',index=False)
+        dpsl=dpsl.drop(['DEC','RA'], axis=1)
         dpsl.reset_index(inplace=True,drop=True)
-        dpsl.to_excel(writer, sheet_name='Source List', index=False )
+        dpsl.to_excel(writer, sheet_name='Source List', startrow=1, header=False, index=False )
+        
+        #Dropped columns : 'DEC' and 'RC' - since 'Coordinates' column already covered this info.
           
     print('log written to {}'.format(proc_path+'/logs_{}.xlsx'.format(date)))
     return
