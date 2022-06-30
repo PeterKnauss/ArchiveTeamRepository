@@ -15,6 +15,7 @@ import glob
 import os
 import sys
 import errno
+import shutil
 from astropy.io import fits
 from astropy.io import ascii
 import numpy as np
@@ -239,7 +240,7 @@ def Score(std,obj):
     return score
 
 #gives 2D list of scores given some dictionary
-def Get_Scores(dictionary, dp):
+def Get_Scores(dictionary, dp, date):
     target = []
     calibrator = []
     cals = []
@@ -247,7 +248,12 @@ def Get_Scores(dictionary, dp):
     #and puts it in a list, that then gets added to either the target
     #or calibrator list defined above. Only does it for fixed sources
     for i in dictionary.keys():
-        rows = dp.loc[(dp['Source Name'].str.lower() == i) & (dp['Object Type'] == 'fixed')]
+        if i == 'empty':
+            i = ''
+            rows = dp.loc[(dp['Source Name'].str.lower() == i) & (dp['Object Type'] == 'fixed')]
+            i = 'empty'
+        #Should have something here in case 'Source Name' = 'Object_Observed'
+        else: rows = dp.loc[(dp['Source Name'].str.lower() == i) & (dp['Object Type'] == 'fixed')]
         if rows.empty:
             if 'flatlamp' in i:
                 temp = []
@@ -292,8 +298,6 @@ def Get_Scores(dictionary, dp):
             except IndexError:
                 target_diff = None
             
-            #print(calibrator_diff)
-            #print(target_diff)
             if calibrator_diff == None:
                 airmass = dictionary[i]['types']['target'][0]['airmass']
                 temp.append(str(airmass))
@@ -324,6 +328,12 @@ def Get_Scores(dictionary, dp):
                 row.append(a)
             Scores.append(row)
     
+    #check to see if there are no targets or no calibrators in the dataset
+    if len(target) == 0:
+        raise Exception('There are no targets in dataset {}'.format(date))
+    if len(calibrator) == 0:
+        raise Exception('There are no calibrators in dataset {}'.format(date))
+
     #picks the best calibrator for each target based on its score and adds a warning is the score is too high
     Best = []
     for i in Scores:
@@ -358,14 +368,14 @@ def Get_Scores(dictionary, dp):
 # Write dataframes to an excel sheet
 
 def writer(proc_path, date, dp, dpsl):
-    with pandas.ExcelWriter(proc_path+'logs_{}.xlsx'.format(date)) as writer:
+    with pandas.ExcelWriter(proc_path+'/logs_{}.xlsx'.format(date)) as writer:
         dp.sort_values('UT Time',inplace=True)
         dp.reset_index(inplace=True,drop=True)
         dp.to_excel(writer,sheet_name='Files',index=False)
         dpsl.reset_index(inplace=True,drop=True)
         dpsl.to_excel(writer, sheet_name='Source List', index=False )
           
-    print('log written to {}'.format(basefolder+'logs_{}.xlsx'.format(date)))
+    print('log written to {}'.format(proc_path+'/logs_{}.xlsx'.format(date)))
     return
 
 #-----------------------------------------------------------------------------#
@@ -402,15 +412,14 @@ def moving_fixed(final, source):
     first_time = hours(final[source]['UT Time'][0])
     last_time = hours(final[source]['UT Time'][-1])
     time_diff = last_time - first_time
-    
-    print(time_diff)
+
     #ra_time_diff = ra_diff / time_diff
     #dec_time_diff = dec_diff / time_diff
 
     ra_time_diff = ra_diff / time_diff
     dec_time_diff = dec_diff / time_diff
         
-    if ra_time_diff > 0.003 or dec_time_diff > 0:
+    if ra_time_diff > 0.003 or dec_time_diff > 0.003:
         object_type = 'moving'
     else:
         object_type = 'fixed'
@@ -446,7 +455,7 @@ def add_batch(source, batch, final, prefix, airmass, calibration_number, ra_firs
     final[source]['RA'] = [ra_first, ra_last]
     final[source]['Dec'] = [dec_first, dec_last]
     final[source]['UT Time'] = [ut_first, ut_last]
-    if len(final[source]['types']['calibration']) != 0:
+    if 'flatlamp' in source:
         calibration_number = calibration_number + 1
 
     return calibration_number
@@ -490,6 +499,8 @@ def create_dictionaries(dp):
         source = row['Source Name']
         if source == 'Object_Observed':
             source = row['File'][0:-11]
+        if source == '':
+            source = 'Empty'
         if source in ['flat field', 'arclamp']:
             source = 'flatlamp %s' % calibration_number
             prefix = 'flat/arc %s' % calibration_number
@@ -525,9 +536,9 @@ def create_dictionaries(dp):
         ut_old = ut
 
         # The actual smarts -- figure out what type the star is based on the Integration
-        if integration < 1:
+        if 'flatlamp' in source:
             type = 'calibration'
-        elif integration < 70:
+        elif integration < 60:
             type = 'calibrator'
         else:
             type = 'target'
@@ -567,60 +578,85 @@ def create_dictionaries(dp):
 
 #--------------------------------------------------------------------------------#
 
-def create_folder(date):    
-    proc_directory='proc'
-    cals_directory='cals'
-    reduction_directory=os.path.join(os.getcwd(), 'reductions')
-    parental_directory= os.path.join(reduction_directory, str(date) )
+def create_folder(path, date, has_path_input):
+    if has_path_input == False:
+        proc_directory='proc'
+        cals_directory='cals'
+        reduction_directory=os.path.join(os.getcwd(), 'reductions')
+        parental_directory= os.path.join(reduction_directory, str(date) )
     
-    #should be something like : /home/user/reductions/(the date)/
+        #should be something like : /home/user/reductions/(the date)/
     
-    #Check if 'reductions' is created. if not print a comment and ask for one
-    #and then checks if the 'date' folder already exist in reductions folder
-    try:
-        os.mkdir(parental_directory)
-    except OSError as err:
-        if err.errno == errno.ENOENT:
-            print('FileNotFound, Create a reduction folder')
-        if err.errno == errno.EEXIST:
-            print('FileExistError: %s file already exist in reductions folder' %date)
-        else:
-            raise
+        #Check if 'reductions' is created. if not print a comment and ask for one
+        #and then checks if the 'date' folder already exist in reductions folder
+        try:
+            os.mkdir(parental_directory)
+        except OSError as err:
+            if err.errno == errno.ENOENT:
+                print('FileNotFound, Create a reduction folder')
+            if err.errno == errno.EEXIST:
+                print('FileExistError: %s file already exist in reductions folder' %date)
+            else:
+                raise
         
-    proc_path=os.path.join(parental_directory, proc_directory)
-    cals_path=os.path.join(parental_directory, cals_directory)
-    raw_path=os.path.join('/data/SpeX/', str(date))
-    # Check if data exist in raw_path
-    try: 
-        os.mkdir(raw_path)
-    except OSError as err:
-        if err.errno == errno.ENOENT:
-            print('FileNotFound: %s does not exist in raw folder' %date)
-        if err.errno == errno.EEXIST:
-            print('FileExistError: File exist in raw folder')
-        else:
-            raise
-    # Making the folders
-    try:
-        os.mkdir(proc_path)
-    except OSError as err:
-        if err.errno == errno.ENOENT:
-            print('FileNotFound : Missing some folders, please check your path')
-        if err.errno == errno.EEXIST:
-            print('FileExistError : File exist, might overwrite !!')
-        else:
-            raise
+        proc_path=os.path.join(parental_directory, proc_directory)
+        cals_path=os.path.join(parental_directory, cals_directory)
+        raw_path=os.path.join('/data/SpeX/', str(date))
+        
+        # Check if data exist in raw_path
+        try: 
+            os.mkdir(raw_path)
+        except OSError as err:
+            if err.errno == errno.ENOENT:
+                print('FileNotFound: %s does not exist in raw folder' %date)
+            if err.errno == errno.EEXIST:
+                print('FileExist: Good ! File exist in raw folder.')
+            else:
+               raise
 
-    try:
+        # Making the folders
+        try:
+            os.mkdir(proc_path)
+        except OSError as err:
+            if err.errno == errno.ENOENT:
+                print('FileNotFound : Missing some folders, please check your path')
+            if err.errno == errno.EEXIST:
+                print('FileExistError : File exist, Do you want to OVERWRITE proc folder? Please enter yes or no: ')
+                proc_input=input()
+                if 'yes' in proc_input.lower():
+                    shutil.rmtree(proc_path)
+                    os.makedirs(proc_path)
+                    print('File Renewed')
+                else:
+                    print('Nothing Changed')
+            else:
+               raise
+
+        try:
+            os.mkdir(cals_path)
+        except OSError as err:
+            if err.errno == errno.ENOENT:
+                print('FileNotFound : Missing some folders, please check your path')
+            if err.errno == errno.EEXIST:
+                print('FileExistError : File exist, Do you want to OVERWRITE cals folder? Please enter yes or no: ')
+                cals_input=input()
+                if 'yes' in cals_input.lower():
+                    shutil.rmtree(proc_path)
+                    os.makedirs(proc_path)
+                    print('File Renewed')
+                else:
+                    print('Nothing Changed')
+            else:
+               raise
+    
+    else:
+        raw_path = path
+        cals_path = os.path.dirname(path) + '/{} cals'.format(date)
+        proc_path = os.path.dirname(path) + '/{} proc'.format(date)
         os.mkdir(cals_path)
-    except OSError as err:
-        if err.errno == errno.ENOENT:
-            print('FileNotFound : Missing some folders, please check your path')
-        if err.errno == errno.EEXIST:
-            print('FileExistError : File exist, might overwrite !!')
-        else:
-            raise
-	
+        os.mkdir(proc_path)
+    
+
     return raw_path, cals_path, proc_path
 #---------------------------------------------------------------------------------------------
 ##############################################################################################
@@ -653,8 +689,7 @@ def get_source_list(dp,date):
                 coord_list.append(str(dpcopy.loc[i,'RA'])+' '+str(dpcopy.loc[i,'Dec']))
                 index_list_source.append(i)
 
-    dpsl=pandas.DataFrame()  
-    #avg_list=[]
+    dpsl=pandas.DataFrame()
     dpcc=pandas.DataFrame()
     mpc_obs='568'
     num=0
@@ -662,7 +697,13 @@ def get_source_list(dp,date):
         ra_list=[]
         dec_list=[]
         dpsl.loc[num,'Source Name']=name
-        
+        dpsl.loc[num,'Object Type']=''
+        dpsl.loc[num,'Date']=str(date[0:4])+'-'+str(date[4:6])+'-'+str(date[6:])
+        for i,k in enumerate(dpcopy['Source Name']):
+            if name == dpcopy.loc[i,'Source Name']:
+                if bool(dpsl.loc[num,'Object Type'])== False:
+                    dpsl.loc[num, 'Object Type']=dpcopy.loc[i,'Object Type']
+
         if dpcopy.loc[index_list_source[num], 'Object Type']== 'moving':
             
             try:
@@ -772,6 +813,10 @@ def makelog(raw_path, cals_path, proc_path, date):
         elif source == 'flat field':
             dp.loc[i,'Object Type'] = 'Calibration'
         else:
+            if source == '':
+                source = 'empty'
+            if source == 'Object_Observed':
+                source = dp.loc[i,'File'][0:-11]
             object_type = moving_fixed(final, source)
             dp.loc[i,'Object Type'] = object_type
         if object_type == 'fixed':
@@ -779,7 +824,7 @@ def makelog(raw_path, cals_path, proc_path, date):
             
     dpsl=get_source_list(dp, str(date))
     
-    best, calibrators, targets, cals = Get_Scores(final, dp)
+    best, calibrators, targets, cals = Get_Scores(final, dp, date)
     #print('Best:', best)
     #print('calibrator:', calibrators)
     #print('target:', targets)
@@ -787,11 +832,6 @@ def makelog(raw_path, cals_path, proc_path, date):
     
     for number, lists in enumerate(targets):
         name = lists[3]
-        #rows = dp.loc[(dp['Source Name'].str.lower() == name) & (dp['Object Type'] == 'fixed')]
-        #if rows.empty:
-            #INSERT STUFF FOR MOVING TARGET IDENTIFICATION HERE
-            #pass
-        #else:
         prefix = final[name]['prefix']
         try:
             start_of_target = final[name]['types']['target'][0]['start']
@@ -803,11 +843,18 @@ def makelog(raw_path, cals_path, proc_path, date):
             end_of_target = final[name]['types']['calibrator'][0]['end']
         calibrator_index = best[number][1]
         calibrator_name = calibrators[calibrator_index][3]
+        calibrator_prefix = final[calibrator_name]['prefix']
         start_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['start']
         end_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['end']
         calibrator_rows = dp.loc[(dp['Source Name'].str.lower() == calibrator_name)]
-        B_mag = round(float(calibrator_rows['B Flux'].iloc[0]),2)
-        V_mag = round(float(calibrator_rows['V Flux'].iloc[0]),2)
+        try:
+            V_mag = round(float(calibrator_rows['V Flux'].iloc[0]),2)
+        except ValueError:
+            V_mag = 'N/A'
+        try:
+            B_mag = round(float(calibrator_rows['B Flux'].iloc[0]),2)
+        except ValueError:
+            B_mag = 'N/A'
         calibration_name = cals[number][1]
         start_of_calibration = final[calibration_name]['types']['calibration'][0]['start']
         end_of_calibration = final[calibration_name]['types']['calibration'][0]['end']
@@ -834,7 +881,7 @@ def makelog(raw_path, cals_path, proc_path, date):
                        'std shape flag', 'std b mag', 'std v mag', 'shift flag', 
                        'shift range', 'filename', 'force flag']
         
-        final_table.add_row([calibration_range, prefix, target_range, prefix, 
+        final_table.add_row([calibration_range, prefix, target_range, calibrator_prefix, 
                              calibrator_range, '2.5,2,2.2,2,0', '1.4-1.8','0',
                              '1-2','1', B_mag, V_mag, '1', '1.75-2.05', 
                              'spex_prism_{0}_{1}'.format(name,date), '0'])
@@ -843,7 +890,7 @@ def makelog(raw_path, cals_path, proc_path, date):
     final_table.header = False
     final_table.hrules = HEADER
     
-    input_file = proc_path
+    input_file = proc_path+'/input.txt'
     with open(input_file, 'w') as file:
         if cols == cols_old: 
             instrument = 'SpeX'
@@ -874,26 +921,73 @@ def makelog(raw_path, cals_path, proc_path, date):
 
 magnitudes=['B','V','J','H','K']
 
-root = Tk()
-root.title('Select Files')
-root.attributes('-topmost',True)
-root.geometry('250x100')
-def select():
-    root.directory = askopendirnames(initialdir='/data/SpeX/',title='Select Files')
-    return root.directory
-select_btn = Button(root, text='Select',command=select)
-close_btn = Button(root, text = 'Exit', command=root.destroy)
-select_btn.place(relx = 0.5, rely = 0.35, anchor=CENTER)
-close_btn.place(relx = 0.5, rely = 0.65, anchor=CENTER)
-root.mainloop()
+if __name__ == '__main__':
+    has_date_input = False
+    has_path_input = False
+    for argument in sys.argv:
+        if argument[0:4] == 'date':
+            has_date_input = True
+            dates_input = argument[5:]
+        if argument[0:4].lower() == 'path':
+            has_path_input = True
+            path_input = argument[5:]
 
-for directory in root.directory:
-    basefolder = str(directory)
-    date = os.path.basename(basefolder)
-    print(date)
-    try:
-        raw, cals, proc = create_folder(date)
-        makelog(raw, cals, proc, date)
-    except Exception as err:
-        print(traceback.format_exc())
+    if has_date_input == False and has_path_input == False:
+        root = Tk()
+        root.title('Select Files')
+        root.attributes('-topmost',True)
+        root.geometry('250x100')
+        def select():
+            root.directories = askopendirnames(initialdir='/data/SpeX/',title='Select Files')
+            return root.directories
+        select_btn = Button(root, text='Select',command=select)
+        close_btn = Button(root, text = 'Exit', command=root.destroy)
+        select_btn.place(relx = 0.5, rely = 0.35, anchor=CENTER)
+        close_btn.place(relx = 0.5, rely = 0.65, anchor=CENTER)
+        root.mainloop()
+        input_directories = root.directories
+
+    if has_date_input == False and has_path_input == True:
+        root = Tk()
+        root.title('Select Files')
+        root.attributes('-topmost',True)
+        root.geometry('250x100')
+        def select():
+            root.directories = askopendirnames(initialdir=path_input,title='Select Files')
+            return root.directories
+        select_btn = Button(root, text='Select',command=select)
+        close_btn = Button(root, text = 'Exit', command=root.destroy)
+        select_btn.place(relx = 0.5, rely = 0.35, anchor=CENTER)
+        close_btn.place(relx = 0.5, rely = 0.65, anchor=CENTER)
+        root.mainloop()
+        input_directories = root.directories
+
+    if has_date_input == True and has_path_input == False:
+        if dates_input == '**':
+            raise Exception('Dont do that.')
+        else:
+            input_directories = glob.glob('/data/SpeX/'+ dates_input)
+            if len(input_directories) == 0:
+                raise Exception('There are no folders with those date in /data/SpeX')
+
+    if has_date_input == True and has_path_input == True:
+        if dates_input =='**':
+            raise Exception('Dont do that.')
+        else:
+            input_directories = glob.glob(path_input + '/' + dates_input)
+            if len(input_directories) == 0:
+                raise Exception('There are no folders with those dates in ' + path_input)
+
+    print(input_directories)
+    for directory in input_directories:
+            basefolder = str(directory)
+            date = os.path.basename(basefolder)
+            print(date)
+            try:
+                raw, cals, proc = create_folder(basefolder, date, has_path_input)
+                makelog(raw, cals, proc, date)
+            except Exception as err:
+                print(traceback.format_exc())
+        
+        
     
