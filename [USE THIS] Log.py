@@ -957,7 +957,7 @@ if __name__ == '__main__':
         else:
             input_directories = glob.glob(os.path.join(path_input or '/data/SpeX/',dates_input))
             if len(input_directories) == 0:
-                raise Exception('There are no folders with those dates in /data/SpeX')
+                raise Exception('There are no folders with those dates in {}'.format(path_input or '/data/SpeX'))
 
 
     print(input_directories)
