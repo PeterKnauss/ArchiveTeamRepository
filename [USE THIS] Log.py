@@ -578,8 +578,8 @@ def create_dictionaries(dp):
 
 #--------------------------------------------------------------------------------#
 
-def create_folder(path, date, has_path_input):
-    if has_path_input == False:
+def create_folder(path, date, path_input):
+    if not path_input:
         proc_directory='proc'
         cals_directory='cals'
         reduction_directory=os.path.join(os.getcwd(), 'reductions')
@@ -922,23 +922,24 @@ def makelog(raw_path, cals_path, proc_path, date):
 magnitudes=['B','V','J','H','K']
 
 if __name__ == '__main__':
-    has_date_input = False
-    has_path_input = False
+
+    path_input = None
+    dates_input = None
+    
     for argument in sys.argv:
         if argument[0:4] == 'date':
             has_date_input = True
             dates_input = argument[5:]
         if argument[0:4].lower() == 'path':
-            has_path_input = True
             path_input = argument[5:]
 
-    if has_date_input == False and has_path_input == False:
+    if not dates_input:
         root = Tk()
         root.title('Select Files')
         root.attributes('-topmost',True)
         root.geometry('250x100')
         def select():
-            root.directories = askopendirnames(initialdir='/data/SpeX/',title='Select Files')
+            root.directories = askopendirnames(initialdir=path_input or '/data/SpeX/',title='Select Files')
             return root.directories
         select_btn = Button(root, text='Select',command=select)
         close_btn = Button(root, text = 'Exit', command=root.destroy)
@@ -947,36 +948,14 @@ if __name__ == '__main__':
         root.mainloop()
         input_directories = root.directories
 
-    if has_date_input == False and has_path_input == True:
-        root = Tk()
-        root.title('Select Files')
-        root.attributes('-topmost',True)
-        root.geometry('250x100')
-        def select():
-            root.directories = askopendirnames(initialdir=path_input,title='Select Files')
-            return root.directories
-        select_btn = Button(root, text='Select',command=select)
-        close_btn = Button(root, text = 'Exit', command=root.destroy)
-        select_btn.place(relx = 0.5, rely = 0.35, anchor=CENTER)
-        close_btn.place(relx = 0.5, rely = 0.65, anchor=CENTER)
-        root.mainloop()
-        input_directories = root.directories
-
-    if has_date_input == True and has_path_input == False:
+    else:
         if dates_input == '**':
-            raise Exception('Dont do that.')
+            raise Exception('Don\'t do that.')
         else:
-            input_directories = glob.glob('/data/SpeX/'+ dates_input)
+            input_directories = glob.glob(os.path.join(path_input or '/data/SpeX/',dates_input))
             if len(input_directories) == 0:
-                raise Exception('There are no folders with those date in /data/SpeX')
+                raise Exception('There are no folders with those dates in /data/SpeX')
 
-    if has_date_input == True and has_path_input == True:
-        if dates_input =='**':
-            raise Exception('Dont do that.')
-        else:
-            input_directories = glob.glob(path_input + '/' + dates_input)
-            if len(input_directories) == 0:
-                raise Exception('There are no folders with those dates in ' + path_input)
 
     print(input_directories)
     for directory in input_directories:
@@ -984,7 +963,7 @@ if __name__ == '__main__':
             date = os.path.basename(basefolder)
             print(date)
             try:
-                raw, cals, proc = create_folder(basefolder, date, has_path_input)
+                raw, cals, proc = create_folder(basefolder, date, path_input)
                 makelog(raw, cals, proc, date)
             except Exception as err:
                 print(traceback.format_exc())
