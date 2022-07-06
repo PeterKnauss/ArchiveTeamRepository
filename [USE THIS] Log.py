@@ -16,6 +16,7 @@ import os
 import sys
 import errno
 import shutil
+from pathlib import Path
 from astropy.io import fits
 from astropy.io import ascii
 import numpy as np
@@ -585,7 +586,7 @@ def create_folder(path, date, path_input):
     if not path_input:
         proc_directory='proc'
         cals_directory='cals'
-        reduction_directory=os.path.join(os.getcwd(), 'reductions')
+        reduction_directory=os.path.join(str(Path.home()), 'reductions')
         parental_directory= os.path.join(reduction_directory, str(date) )
     
         #should be something like : /home/user/reductions/(the date)/
