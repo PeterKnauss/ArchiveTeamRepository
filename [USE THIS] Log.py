@@ -375,10 +375,20 @@ def writer(proc_path, date, dp, dpsl):
         dpsl=dpsl.drop(['DEC','RA'], axis=1)
         dpsl.reset_index(inplace=True,drop=True)
         dpsl.to_excel(writer, sheet_name='Source List', startrow=1, header=False, index=False )
+        print('log written to {}'.format(proc_path+'/logs_{}.xlsx'.format(date)))
+
+    if os.path.isdir('/data/SpeX/LOGS'):
+        with pandas.ExcelWriter('/data/SpeX/LOGS/logs_{}.xlsx'.format(date)) as writer:
+            dp.sort_values('UT Time',inplace=True)
+            dp.reset_index(inplace=True,drop=True)
+            dp.to_excel(writer,sheet_name='Files',index=False)
+            dpsl=dpsl.drop(['DEC','RA'], axis=1)
+            dpsl.reset_index(inplace=True,drop=True)
+            dpsl.to_excel(writer, sheet_name='Source List', startrow=1, header=False, index=False )
+            print('log written to {}'.format('/data/SpeX/LOGS/logs_{}.xlsx'.format(date)))
         
-        #Dropped columns : 'DEC' and 'RC' - since 'Coordinates' column already covered this info.
+    #Dropped columns : 'DEC' and 'RC' - since 'Coordinates' column already covered this info.
           
-    print('log written to {}'.format(proc_path+'/logs_{}.xlsx'.format(date)))
     return
 
 #-----------------------------------------------------------------------------#
@@ -582,7 +592,7 @@ def create_dictionaries(dp):
 #--------------------------------------------------------------------------------#
 
 def create_folder(path, date, path_input):
-    if not path_input:
+    if path_input == '/data/SpeX/':
         proc_directory='proc'
         cals_directory='cals'
         reduction_directory=os.path.join(os.getcwd(), 'reductions')
@@ -926,23 +936,25 @@ magnitudes=['B','V','J','H','K']
 
 if __name__ == '__main__':
 
-    path_input = None
-    dates_input = None
+    path_input = '/data/SpeX/'
+    dates_input = ''
     
     for argument in sys.argv:
         if argument[0:4] == 'date':
             has_date_input = True
             dates_input = argument[5:]
+            print(dates_input)
         if argument[0:4].lower() == 'path':
             path_input = argument[5:]
+            print(path_input)
 
-    if not dates_input:
+    if dates_input == '':
         root = Tk()
         root.title('Select Files')
         root.attributes('-topmost',True)
         root.geometry('250x100')
         def select():
-            root.directories = askopendirnames(initialdir=path_input or '/data/SpeX/',title='Select Files')
+            root.directories = askopendirnames(initialdir=path_input ,title='Select Files')
             return root.directories
         select_btn = Button(root, text='Select',command=select)
         close_btn = Button(root, text = 'Exit', command=root.destroy)
@@ -955,9 +967,9 @@ if __name__ == '__main__':
         if dates_input == '**':
             raise Exception('Don\'t do that.')
         else:
-            input_directories = glob.glob(os.path.join(path_input or '/data/SpeX/',dates_input))
+            input_directories = glob.glob(os.path.join(path_input,dates_input))
             if len(input_directories) == 0:
-                raise Exception('There are no folders with those dates in /data/SpeX')
+                raise Exception('There are no folders with those dates in {}'.format(path_input or '/data/SpeX'))
 
 
     print(input_directories)
@@ -973,3 +985,4 @@ if __name__ == '__main__':
         
         
     
+
