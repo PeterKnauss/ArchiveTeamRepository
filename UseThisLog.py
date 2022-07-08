@@ -16,6 +16,7 @@ import os
 import sys
 import errno
 import shutil
+from pathlib import Path
 from astropy.io import fits
 from astropy.io import ascii
 from astropy.table import Table
@@ -79,10 +80,12 @@ cols_old = {
 
 def openfiles(date): #Opens and extracts data from hdu files
     folder = basefolder
-    #####USED IN IDL#####folder = basefolder+'/{}/'.format(date)
+    #####USED IN REMOTE MACHINE#####
+    #basefolder='/data/SpeX'
+    #folder = basefolder+'/{}/'.format(date)
     if os.path.isdir(folder) == False: 
         raise ValueError('Cannot find folder {}'.format(folder))
-    ####USED IN IDL#####files = glob.glob(folder+ '.fits')
+    ####USED IN REMOTE MACHINE#####files = glob.glob(folder+ '*.fits')
     files = glob.glob(basefolder+'/*.fits')
     files = sorted(files, key=lambda _: re.sub(r'[^\d]', '', _)[-4:])
     if len(files) == 0: 
@@ -618,7 +621,7 @@ def create_folder(path, date, path_input):
     if path_input == '/data/SpeX/':
         proc_directory='proc'
         cals_directory='cals'
-        reduction_directory=os.path.join(os.getcwd(), 'reductions')
+        reduction_directory=os.path.join(str(Path.home()), 'reductions')
         parental_directory= os.path.join(reduction_directory, str(date) )
     
         #should be something like : /home/user/reductions/(the date)/
