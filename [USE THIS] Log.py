@@ -16,9 +16,9 @@ import os
 import sys
 import errno
 import shutil
-from pathlib import Path
 from astropy.io import fits
 from astropy.io import ascii
+from astropy.table import Table
 import numpy as np
 import math
 import re
@@ -26,9 +26,8 @@ from astroquery.jplsbdb import SBDB
 from sbident import SBIdent # pip install git+https://github.com/bengebre/sbident
 from astropy.time import Time
 from astropy.coordinates import SkyCoord
-from prettytable import PrettyTable, NONE, HEADER #pip install prettytable
-from tkinter import *
-from tkfilebrowser import askopendirnames # pip install tkfilebrowser
+#from tkinter import *
+#from tkfilebrowser import askopendirnames # pip install tkfilebrowser
 import traceback
 
 #-----------------------------------------------------------------------------#
@@ -368,25 +367,44 @@ def Get_Scores(dictionary, dp, date):
 #-----------------------------------------------------------------------------#
 # Write dataframes to an excel sheet
 
-def writer(proc_path, date, dp, dpsl):
-    with pandas.ExcelWriter(proc_path+'/logs_{}.xlsx'.format(date)) as writer:
-        dp.sort_values('UT Time',inplace=True)
-        dp.reset_index(inplace=True,drop=True)
-        dp.to_excel(writer,sheet_name='Files',index=False)
-        dpsl=dpsl.drop(['DEC','RA'], axis=1)
-        dpsl.reset_index(inplace=True,drop=True)
-        dpsl.to_excel(writer, sheet_name='Source List', startrow=1, header=False, index=False )
-        print('log written to {}'.format(proc_path+'/logs_{}.xlsx'.format(date)))
-
-    if os.path.isdir('/data/SpeX/LOGS'):
-        with pandas.ExcelWriter('/data/SpeX/LOGS/logs_{}.xlsx'.format(date)) as writer:
+def writer(proc_path, date, dp, dpsl, format_input):
+    if format_input.lower() == 'excel':
+        with pandas.ExcelWriter(proc_path+'/logs_{}.xlsx'.format(date)) as writer:
             dp.sort_values('UT Time',inplace=True)
             dp.reset_index(inplace=True,drop=True)
             dp.to_excel(writer,sheet_name='Files',index=False)
             dpsl=dpsl.drop(['DEC','RA'], axis=1)
             dpsl.reset_index(inplace=True,drop=True)
             dpsl.to_excel(writer, sheet_name='Source List', startrow=1, header=False, index=False )
-            print('log written to {}'.format('/data/SpeX/LOGS/logs_{}.xlsx'.format(date)))
+            print('log written to {}'.format(proc_path+'/logs_{}.xlsx'.format(date)))
+
+        if os.path.isdir('/data/SpeX/LOGS'):
+            with pandas.ExcelWriter('/data/SpeX/LOGS/logs_{}.xlsx'.format(date)) as writer:
+                dp.sort_values('UT Time',inplace=True)
+                dp.reset_index(inplace=True,drop=True)
+                dp.to_excel(writer,sheet_name='Files',index=False)
+                dpsl=dpsl.drop(['DEC','RA'], axis=1)
+                dpsl.reset_index(inplace=True,drop=True)
+                dpsl.to_excel(writer, sheet_name='Source List', startrow=1, header=False, index=False )
+                print('log written to {}'.format('/data/SpeX/LOGS/logs_{}.xlsx'.format(date)))
+    
+    else:
+        dp.sort_values('UT Time',inplace=True)
+        dp.reset_index(inplace=True,drop=True)
+        dp.to_csv(proc_path+'/logs_{}.csv'.format(date),index=False)
+        dpsl=dpsl.drop(['DEC','RA'], axis=1)
+        dpsl.reset_index(inplace=True,drop=True)
+        dpsl.to_csv(proc_path+'/source_list_{}.csv'.format(date), index=False )
+        print('log and source list written to {} as csv'.format(proc_path))
+
+        if os.path.isdir('/data/SpeX/LOGS'):
+            dp.sort_values('UT Time',inplace=True)
+            dp.reset_index(inplace=True,drop=True)
+            dp.to_csv('/data/SpeX/LOGS/logs_{}.csv'.format(date),index=False)
+            #dpsl=dpsl.drop(['DEC','RA'], axis=1)
+            #dpsl.reset_index(inplace=True,drop=True)
+            #dpsl.to_csv('/data/SpeX/LOGS/source_list_{}.csv'.format(date), index=False )
+            print('log written to /data/SpeX/LOGS as csv')
         
     #Dropped columns : 'DEC' and 'RC' - since 'Coordinates' column already covered this info.
           
@@ -596,7 +614,7 @@ def create_folder(path, date, path_input):
     if path_input == '/data/SpeX/':
         proc_directory='proc'
         cals_directory='cals'
-        reduction_directory=os.path.join(str(Path.home()), 'reductions')
+        reduction_directory=os.path.join(os.getcwd(), 'reductions')
         parental_directory= os.path.join(reduction_directory, str(date) )
     
         #should be something like : /home/user/reductions/(the date)/
@@ -795,7 +813,7 @@ def get_source_list(dp,date):
 ###############################################################################
 # Actually make the log
 
-def makelog(raw_path, cals_path, proc_path, date):
+def makelog(raw_path, cals_path, proc_path, date, format_input):
     
     cols, files, dp, dpc = openfiles(date)
     for c in list(cols.keys()): 
@@ -888,22 +906,17 @@ def makelog(raw_path, cals_path, proc_path, date):
         #print('Standard V Mag:', V_mag)
         #print('File Name:', 'spex_prism_%s_%s' % (name, date))
         
-        if number == 0:   
-            final_table = PrettyTable()
-            final_table.field_names = ['cals', 'prefix1', 'obj', 'prefix2', 'std', 'ext. params',
-                       'obj scl range', 'obj shape flag', 'std scl range', 
-                       'std shape flag', 'std b mag', 'std v mag', 'shift flag', 
-                       'shift range', 'filename', 'force flag']
+        if number == 0:
+            data_table = pandas.DataFrame(columns = ['cals', 'prefix1', 'obj', 'prefix2', 'std', 'ext. params',
+                        'obj scl range', 'obj shape flag', 'std scl range', 
+                        'std shape flag', 'std b mag', 'std v mag', 'shift flag', 
+                        'shift range', 'filename', 'force flag'])
         
-        final_table.add_row([calibration_range, prefix, target_range, calibrator_prefix, 
+        data_table.loc[len(data_table.index)] = [calibration_range, prefix, target_range, calibrator_prefix, 
                              calibrator_range, '2.5,2,2.2,2,0', '1.4-1.8','0',
                              '1-2','1', B_mag, V_mag, '1', '1.75-2.05', 
-                             'spex_prism_{0}_{1}'.format(name,date), '0'])
-    
-    #make final table look like how we need
-    final_table.header = False
-    final_table.hrules = HEADER
-    
+                             'spex_prism_{0}_{1}'.format(name,date), '0']
+
     input_file = proc_path+'/input.txt'
     with open(input_file, 'w') as file:
         if cols == cols_old: 
@@ -916,7 +929,9 @@ def makelog(raw_path, cals_path, proc_path, date):
         file.write('# calpath = {} \n'.format(cals_path))
         file.write('# procpath = {} \n'.format(proc_path))
         file.write('# \n')
-        file.write(str(final_table))
+    
+    data_table = data_table.applymap(lambda x:str(x).center(25))
+    data_table.to_csv(input_file,'|', mode= 'a', index = False, header = False)
         
     print('input file written to {}'.format(input_file))
     
@@ -927,7 +942,7 @@ def makelog(raw_path, cals_path, proc_path, date):
 
     #dpsl = source_list(final, dp)
     
-    writer(proc_path, date, dp, dpsl)
+    writer(proc_path, date, dp, dpsl, format_input)
     
     return dp
 
@@ -939,6 +954,7 @@ if __name__ == '__main__':
 
     path_input = '/data/SpeX/'
     dates_input = ''
+    format_input = ''
     
     for argument in sys.argv:
         if argument[0:4] == 'date':
@@ -948,30 +964,35 @@ if __name__ == '__main__':
         if argument[0:4].lower() == 'path':
             path_input = argument[5:]
             print(path_input)
+        if argument[0:6].lower() == 'format':
+            format_input = argument[7:]
+            print(format_input)
 
     if dates_input == '':
-        root = Tk()
-        root.title('Select Files')
-        root.attributes('-topmost',True)
-        root.geometry('250x100')
-        def select():
-            root.directories = askopendirnames(initialdir=path_input ,title='Select Files')
-            return root.directories
-        select_btn = Button(root, text='Select',command=select)
-        close_btn = Button(root, text = 'Exit', command=root.destroy)
-        select_btn.place(relx = 0.5, rely = 0.35, anchor=CENTER)
-        close_btn.place(relx = 0.5, rely = 0.65, anchor=CENTER)
-        root.mainloop()
-        input_directories = root.directories
+        print('Please input a date or set of dates (using format 200101*) you would like to run:')
+        dates_input = input()
+        input_directories = glob.glob(os.path.join(path_input, dates_input))
+        #root = Tk()
+        #root.title('Select Files')
+        #root.attributes('-topmost',True)
+        #root.geometry('250x100')
+        #def select():
+        #    root.directories = askopendirnames(initialdir=path_input ,title='Select Files')
+        #    return root.directories
+        #select_btn = Button(root, text='Select',command=select)
+        #close_btn = Button(root, text = 'Exit', command=root.destroy)
+        #select_btn.place(relx = 0.5, rely = 0.35, anchor=CENTER)
+        #close_btn.place(relx = 0.5, rely = 0.65, anchor=CENTER)
+        #root.mainloop()
+        #input_directories = root.directories
 
     else:
         if dates_input == '**':
             raise Exception('Don\'t do that.')
         else:
-            input_directories = glob.glob(os.path.join(path_input,dates_input))
+            input_directories = glob.glob(os.path.join(path_input, dates_input))
             if len(input_directories) == 0:
-                raise Exception('There are no folders with those dates in {}'.format(path_input or '/data/SpeX'))
-
+                raise Exception('There are no folders with those dates in  {}'.format(path_input))
 
     print(input_directories)
     for directory in input_directories:
@@ -980,7 +1001,7 @@ if __name__ == '__main__':
             print(date)
             try:
                 raw, cals, proc = create_folder(basefolder, date, path_input)
-                makelog(raw, cals, proc, date)
+                makelog(raw, cals, proc, date, format_input)
             except Exception as err:
                 print(traceback.format_exc())
         
