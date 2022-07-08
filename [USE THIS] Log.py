@@ -26,6 +26,7 @@ from astroquery.jplsbdb import SBDB
 from sbident import SBIdent # pip install git+https://github.com/bengebre/sbident
 from astropy.time import Time
 from astropy.coordinates import SkyCoord
+from prettytable import PrettyTable, NONE, HEADER #pip install prettytable
 #from tkinter import *
 #from tkfilebrowser import askopendirnames # pip install tkfilebrowser
 import traceback
@@ -379,14 +380,17 @@ def writer(proc_path, date, dp, dpsl, format_input):
             print('log written to {}'.format(proc_path+'/logs_{}.xlsx'.format(date)))
 
         if os.path.isdir('/data/SpeX/LOGS'):
-            with pandas.ExcelWriter('/data/SpeX/LOGS/logs_{}.xlsx'.format(date)) as writer:
-                dp.sort_values('UT Time',inplace=True)
-                dp.reset_index(inplace=True,drop=True)
-                dp.to_excel(writer,sheet_name='Files',index=False)
-                dpsl=dpsl.drop(['DEC','RA'], axis=1)
-                dpsl.reset_index(inplace=True,drop=True)
-                dpsl.to_excel(writer, sheet_name='Source List', startrow=1, header=False, index=False )
-                print('log written to {}'.format('/data/SpeX/LOGS/logs_{}.xlsx'.format(date)))
+            try:
+                with pandas.ExcelWriter('/data/SpeX/LOGS/logs_{}.xlsx'.format(date)) as writer:
+                    dp.sort_values('UT Time',inplace=True)
+                    dp.reset_index(inplace=True,drop=True)
+                    dp.to_excel(writer,sheet_name='Files',index=False)
+                    dpsl=dpsl.drop(['DEC','RA'], axis=1)
+                    dpsl.reset_index(inplace=True,drop=True)
+                    dpsl.to_excel(writer, sheet_name='Source List', startrow=1, header=False, index=False )
+                    print('log written to {}'.format('/data/SpeX/LOGS/logs_{}.xlsx'.format(date)))
+            except PermissionError:
+                raise Exception('You do not have permission to add files to /data/SpeX/LOGS')
     
     else:
         dp.sort_values('UT Time',inplace=True)
@@ -682,6 +686,7 @@ def create_folder(path, date, path_input):
                raise
     
     else:
+        reduction_directory = ''
         raw_path = path
         cals_path = os.path.dirname(path) + '/{} cals'.format(date)
         proc_path = os.path.dirname(path) + '/{} proc'.format(date)
@@ -689,7 +694,7 @@ def create_folder(path, date, path_input):
         os.mkdir(proc_path)
     
 
-    return raw_path, cals_path, proc_path
+    return raw_path, cals_path, proc_path, reduction_directory
 #---------------------------------------------------------------------------------------------
 ##############################################################################################
 
@@ -916,7 +921,7 @@ def makelog(raw_path, cals_path, proc_path, date, format_input):
                              calibrator_range, '2.5,2,2.2,2,0', '1.4-1.8','0',
                              '1-2','1', B_mag, V_mag, '1', '1.75-2.05', 
                              'spex_prism_{0}_{1}'.format(name,date), '0']
-
+    
     input_file = proc_path+'/input.txt'
     with open(input_file, 'w') as file:
         if cols == cols_old: 
@@ -960,13 +965,13 @@ if __name__ == '__main__':
         if argument[0:4] == 'date':
             has_date_input = True
             dates_input = argument[5:]
-            print(dates_input)
+            #print(dates_input)
         if argument[0:4].lower() == 'path':
             path_input = argument[5:]
-            print(path_input)
+            #print(path_input)
         if argument[0:6].lower() == 'format':
             format_input = argument[7:]
-            print(format_input)
+            #print(format_input)
 
     if dates_input == '':
         print('Please input a date or set of dates (using format 200101*) you would like to run:')
@@ -988,7 +993,14 @@ if __name__ == '__main__':
 
     else:
         if dates_input == '**':
-            raise Exception('Don\'t do that.')
+            input_directories = glob.glob(os.path.join(path_input, dates_input))
+            length = len(input_directories)
+            print('You are about to run {} files, are you sure you want to do this? yes/no:'.format(length))
+            assuredness = input()
+            if 'yes' in assuredness:
+                pass
+            else:
+                raise Exception('Process Canceled')
         else:
             input_directories = glob.glob(os.path.join(path_input, dates_input))
             if len(input_directories) == 0:
@@ -1000,10 +1012,18 @@ if __name__ == '__main__':
             date = os.path.basename(basefolder)
             print(date)
             try:
-                raw, cals, proc = create_folder(basefolder, date, path_input)
+                raw, cals, proc, reduction = create_folder(basefolder, date, path_input)
                 makelog(raw, cals, proc, date, format_input)
             except Exception as err:
-                print(traceback.format_exc())
+                if reduction == '':
+                    print(traceback.format_exc())
+                else:
+                    ErrorLog = open(os.path.join(reduction,'Error Log.txt'),'a+')
+                    ErrorLog.write(date+'\n')
+                    ErrorLog.write(traceback.format_exc())
+                    ErrorLog.write('\n')
+                    ErrorLog.close()
+                    print(traceback.format_exc())
         
         
     
