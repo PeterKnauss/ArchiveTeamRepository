@@ -979,7 +979,6 @@ if __name__ == '__main__':
     if dates_input == '':
         print('Please input a date or set of dates (using format 200101*) you would like to run:')
         dates_input = input()
-        input_directories = glob.glob(os.path.join(path_input, dates_input))
         #root = Tk()
         #root.title('Select Files')
         #root.attributes('-topmost',True)
@@ -994,20 +993,20 @@ if __name__ == '__main__':
         #root.mainloop()
         #input_directories = root.directories
 
-    else:
-        if dates_input == '**':
-            input_directories = glob.glob(os.path.join(path_input, dates_input))
-            length = len(input_directories)
-            print('You are about to run {} files, are you sure you want to do this? yes/no:'.format(length))
-            assuredness = input()
-            if 'yes' in assuredness:
-                pass
-            else:
-                raise Exception('Process Canceled')
+    #else:
+    if dates_input == '**':
+        input_directories = glob.glob(os.path.join(path_input, dates_input))
+        length = len(input_directories)
+        print('You are about to run {} files, are you sure you want to do this? yes/no:'.format(length))
+        assuredness = input()
+        if 'yes' in assuredness:
+            pass
         else:
-            input_directories = glob.glob(os.path.join(path_input, dates_input))
-            if len(input_directories) == 0:
-                raise Exception('There are no folders with those dates in  {}'.format(path_input))
+            raise Exception('Process Canceled')
+    else:
+        input_directories = glob.glob(os.path.join(path_input, dates_input))
+        if len(input_directories) == 0:
+            raise Exception('There are no folders with those dates in  {}'.format(path_input))
 
     print(input_directories)
     for directory in input_directories:
