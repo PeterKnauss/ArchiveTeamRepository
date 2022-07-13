@@ -40,6 +40,7 @@ cols_new = {
     'Source Name': 'TCS_OBJ',
     'RA': 'TCS_RA',
     'Dec': 'TCS_DEC',
+    'UT Date': 'DATE_OBS',
     'UT Time': 'TIME_OBS',
     'MJD': 'MJD_OBS',
     'HA': 'TCS_HA',
@@ -59,6 +60,7 @@ cols_old = {
     'Source Name': 'OBJECT',
     'RA': 'RA',
     'Dec': 'DEC',
+    'UT Date': 'DATE_OBS',
     'UT Time': 'TIME_OBS',
     'HA': 'HA',
     'PA': 'POSANGLE',
@@ -96,7 +98,7 @@ def openfiles(date): #Opens and extracts data from hdu files
     dp['File'] = [f.split('/')[-1] for f in files]
 
 # select which set of columns to use
-    hdu = fits.open(files[0])
+    hdu = fits.open(files[0], ignore_missing_end=True)
     h = hdu[0].header
     hdu.close()
     if 'TCS_OBJ' in list(h.keys()): cols = cols_new
@@ -374,7 +376,6 @@ def Get_Scores(dictionary, dp, date):
 def writer(proc_path, date, dp, dpsl, format_input):
     if format_input.lower() == 'excel':
         with pandas.ExcelWriter(proc_path+'/logs_{}.xlsx'.format(date)) as writer:
-            dp.sort_values('UT Time',inplace=True)
             dp.reset_index(inplace=True,drop=True)
             dp.to_excel(writer,sheet_name='Files',index=False)
             dpsl=dpsl.drop(['DEC','RA'], axis=1)
@@ -384,19 +385,12 @@ def writer(proc_path, date, dp, dpsl, format_input):
 
         if os.path.isdir('/data/SpeX/LOGS'):
             try:
-                with pandas.ExcelWriter('/data/SpeX/LOGS/logs_{}.xlsx'.format(date)) as writer:
-                    dp.sort_values('UT Time',inplace=True)
-                    dp.reset_index(inplace=True,drop=True)
-                    dp.to_excel(writer,sheet_name='Files',index=False)
-                    dpsl=dpsl.drop(['DEC','RA'], axis=1)
-                    dpsl.reset_index(inplace=True,drop=True)
-                    dpsl.to_excel(writer, sheet_name='Source List', startrow=1, header=False, index=False )
-                    print('log written to {}'.format('/data/SpeX/LOGS/logs_{}.xlsx'.format(date)))
+                shutil.copy(proc_path+'/logs_{}.xlsx'.format(date), '/data/SpeX/LOGS')
+                print('log written to /data/SpeX/LOGS as xlsx')
             except PermissionError:
                 raise Exception('You do not have permission to add files to /data/SpeX/LOGS')
     
     else:
-        dp.sort_values('UT Time',inplace=True)
         dp.reset_index(inplace=True,drop=True)
         dp.to_csv(proc_path+'/logs_{}.csv'.format(date),index=False)
         dpsl=dpsl.drop(['DEC','RA'], axis=1)
@@ -405,13 +399,12 @@ def writer(proc_path, date, dp, dpsl, format_input):
         print('log and source list written to {} as csv'.format(proc_path))
 
         if os.path.isdir('/data/SpeX/LOGS'):
-            dp.sort_values('UT Time',inplace=True)
-            dp.reset_index(inplace=True,drop=True)
-            dp.to_csv('/data/SpeX/LOGS/logs_{}.csv'.format(date),index=False)
-            #dpsl=dpsl.drop(['DEC','RA'], axis=1)
-            #dpsl.reset_index(inplace=True,drop=True)
-            #dpsl.to_csv('/data/SpeX/LOGS/source_list_{}.csv'.format(date), index=False )
-            print('log written to /data/SpeX/LOGS as csv')
+            try:
+                shutil.copy(proc_path+'/logs_{}.csv'.format(date),'/data/SpeX/LOGS')
+                shutil.copy(proc_path+'/source_list_{}.csv'.format(date),'/data/SpeX/LOGS')
+                print('log and source list written to /data/SpeX/LOGS as csv')
+            except PermissionError:
+                raise Exception('You do not have permission to add files to /data/SpeX/LOGS')
         
     #Dropped columns : 'DEC' and 'RC' - since 'Coordinates' column already covered this info.
           
@@ -452,6 +445,9 @@ def moving_fixed(final, source):
     last_time = hours(final[source]['UT Time'][-1])
     time_diff = last_time - first_time
 
+    #print('-----------')
+    #print(source)
+    #print(time_diff)
     #ra_time_diff = ra_diff / time_diff
     #dec_time_diff = dec_diff / time_diff
 
@@ -829,8 +825,8 @@ def makelog(raw_path, cals_path, proc_path, date, format_input):
     old_name = None
     object_type = None
     for i,f in enumerate(files):
-        hdu = fits.open(f)
-        hdu.verify('silentfix')
+        hdu = fits.open(f,ignore_missing_end=True)
+        hdu.verify('fix')
         h = hdu[0].header
         hdu.close()
         
@@ -841,6 +837,11 @@ def makelog(raw_path, cals_path, proc_path, date, format_input):
         if 'flat' in f: 
             dp.loc[i,'Source Name'] = 'flat field'   
         
+    #Sort dataframe by UT Data and Time before creating the final dictionary
+    dp['UT Date Time'] = dp['UT Date'] + ' ' + dp['UT Time']
+    dp.sort_values('UT Date Time',inplace=True)
+    dp.drop(columns='UT Date Time', inplace=True)
+
     final = create_dictionaries(dp)
     dp['Object Type'] = ['']*len(files)
     
@@ -942,12 +943,10 @@ def makelog(raw_path, cals_path, proc_path, date, format_input):
     data_table.to_csv(input_file,'|', mode= 'a', index = False, header = False)
         
     print('input file written to {}'.format(input_file))
-    
-
-    #dp, dpc, dpk = query_reference(dp, dpc)
 
     dp['Notes'] = ['']*len(files)
 
+    #dp, dpc, dpk = query_reference(dp, dpc)
     #dpsl = source_list(final, dp)
     
     writer(proc_path, date, dp, dpsl, format_input)
