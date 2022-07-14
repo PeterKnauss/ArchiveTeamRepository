@@ -373,7 +373,7 @@ def Get_Scores(dictionary, dp, date):
 #-----------------------------------------------------------------------------#
 # Write dataframes to an excel sheet
 
-def writer(proc_path, date, dp, dpsl, format_input):
+def writer(proc_path, date, dp, dpsl, format_input, reduction_path):
     if format_input.lower() == 'excel':
         with pandas.ExcelWriter(proc_path+'/logs_{}.xlsx'.format(date)) as writer:
             dp.reset_index(inplace=True,drop=True)
@@ -385,10 +385,14 @@ def writer(proc_path, date, dp, dpsl, format_input):
 
         if os.path.isdir('/data/SpeX/LOGS'):
             try:
-                shutil.copy(proc_path+'/logs_{}.xlsx'.format(date), '/data/SpeX/LOGS')
+                shutil.copy(proc_path+'/logs_{}.xlsx'.format(date), '/data/SpeX/LOGS/logs_{}.xlsx'.format(date))
                 print('log written to /data/SpeX/LOGS as xlsx')
             except PermissionError:
-                raise Exception('You do not have permission to add files to /data/SpeX/LOGS')
+                try:
+                    shutil.copy(proc_path+'/logs_{}.xlsx'.format(date),reduction_path+'/LOGS/logs_{}.xlsx'.format(date))
+                    print('log written to {} as xlsx'.format(reduction_path+'/LOGS'))
+                except:
+                    raise Exception('You do not have permission to add files to /data/SpeX/LOGS and do not have a LOGS folder at {}'.format(reduction_path))
     
     else:
         dp.reset_index(inplace=True,drop=True)
@@ -400,11 +404,16 @@ def writer(proc_path, date, dp, dpsl, format_input):
 
         if os.path.isdir('/data/SpeX/LOGS'):
             try:
-                shutil.copy(proc_path+'/logs_{}.csv'.format(date),'/data/SpeX/LOGS')
-                shutil.copy(proc_path+'/source_list_{}.csv'.format(date),'/data/SpeX/LOGS')
+                shutil.copy(proc_path+'/logs_{}.csv'.format(date),'/data/SpeX/LOGS/logs_{}.csv'.format(date))
+                shutil.copy(proc_path+'/source_list_{}.csv'.format(date),'/data/SpeX/LOGS/source_list_{}.csv'.format(date))
                 print('log and source list written to /data/SpeX/LOGS as csv')
             except PermissionError:
-                raise Exception('You do not have permission to add files to /data/SpeX/LOGS')
+                try:
+                    shutil.copy(proc_path+'/logs_{}.csv'.format(date),reduction_path+'/LOGS/logs_{}.csv'.format(date))
+                    shutil.copy(proc_path+'/source_list_{}.csv'.format(date),reduction_path+'/LOGS/source_list_{}.csv'.format(date))
+                    print('log and source list written to {} as csv'.format(reduction_path+'/LOGS'))
+                except:
+                    raise Exception('You do not have permission to add files to /data/SpeX/LOGS and do not have a LOGS folder at {}'.format(reduction_path))
         
     #Dropped columns : 'DEC' and 'RC' - since 'Coordinates' column already covered this info.
           
@@ -445,9 +454,9 @@ def moving_fixed(final, source):
     last_time = hours(final[source]['UT Time'][-1])
     time_diff = last_time - first_time
 
-    #print('-----------')
-    #print(source)
-    #print(time_diff)
+    print('-----------')
+    print(source)
+    print(time_diff)
     #ra_time_diff = ra_diff / time_diff
     #dec_time_diff = dec_diff / time_diff
 
@@ -613,7 +622,7 @@ def create_dictionaries(dp):
 
 #--------------------------------------------------------------------------------#
 
-def create_folder(path, date, path_input):
+def create_folder(path, date, path_input, overwrite_input):
     if path_input == '/data/SpeX/':
         proc_directory='proc'
         cals_directory='cals'
@@ -656,8 +665,13 @@ def create_folder(path, date, path_input):
             if err.errno == errno.ENOENT:
                 print('FileNotFound : Missing some folders, please check your path')
             if err.errno == errno.EEXIST:
-                print('FileExistError : File exist, Do you want to OVERWRITE proc folder? Please enter yes or no: ')
-                proc_input=input()
+                if overwrite_input.lower() == 'true' or overwrite_input.lower() == 'yes':
+                    proc_input = 'yes'
+                elif overwrite_input.lower() == 'false' or overwrite_input.lower() == 'no':
+                    proc_input == 'no'
+                else:
+                    print('FileExistError : File exist, Do you want to OVERWRITE proc folder? Please enter yes or no: ')
+                    proc_input=input()
                 if 'yes' in proc_input.lower():
                     shutil.rmtree(proc_path)
                     os.makedirs(proc_path)
@@ -673,8 +687,13 @@ def create_folder(path, date, path_input):
             if err.errno == errno.ENOENT:
                 print('FileNotFound : Missing some folders, please check your path')
             if err.errno == errno.EEXIST:
-                print('FileExistError : File exist, Do you want to OVERWRITE cals folder? Please enter yes or no: ')
-                cals_input=input()
+                if overwrite_input.lower() == 'true' or overwrite_input.lower() == 'yes':
+                    cals_input = 'yes'
+                elif overwrite_input.lower() == 'false' or overwrite_input.lower() == 'no':
+                    cals_input = 'no'
+                else:
+                    print('FileExistError : File exist, Do you want to OVERWRITE cals folder? Please enter yes or no: ')
+                    cals_input=input()
                 if 'yes' in cals_input.lower():
                     shutil.rmtree(proc_path)
                     os.makedirs(proc_path)
@@ -845,7 +864,7 @@ def makelog(raw_path, cals_path, proc_path, date, format_input):
     final = create_dictionaries(dp)
     dp['Object Type'] = ['']*len(files)
     
-    #print(final)
+    print(final)
         
     for i,f in enumerate(files):
         source = dp.loc[i,'Source Name'].lower()
@@ -949,7 +968,7 @@ def makelog(raw_path, cals_path, proc_path, date, format_input):
     #dp, dpc, dpk = query_reference(dp, dpc)
     #dpsl = source_list(final, dp)
     
-    writer(proc_path, date, dp, dpsl, format_input)
+    writer(proc_path, date, dp, dpsl, format_input, reduction)
     
     return dp
 
@@ -962,6 +981,7 @@ if __name__ == '__main__':
     path_input = '/data/SpeX/'
     dates_input = ''
     format_input = ''
+    overwrite_input = ''
     
     for argument in sys.argv:
         if argument[0:4] == 'date':
@@ -974,6 +994,9 @@ if __name__ == '__main__':
         if argument[0:6].lower() == 'format':
             format_input = argument[7:]
             #print(format_input)
+        if argument[0:9].lower() == 'overwrite':
+            overwrite_input = argument[10:]
+            #print(overwrite_input)
 
     if dates_input == '':
         print('Please input a date or set of dates (using format 200101*) you would like to run:')
@@ -1013,7 +1036,7 @@ if __name__ == '__main__':
             date = os.path.basename(basefolder)
             print(date)
             try:
-                raw, cals, proc, reduction = create_folder(basefolder, date, path_input)
+                raw, cals, proc, reduction = create_folder(basefolder, date, path_input, overwrite_input)
                 makelog(raw, cals, proc, date, format_input)
             except Exception as err:
                 if reduction == '':
