@@ -985,9 +985,9 @@ if __name__ == '__main__':
     
     for argument in sys.argv:
         if argument[0:4] == 'date':
-            has_date_input = True
-            dates_input = argument[5:]
-            #print(dates_input)
+            #has_date_input = True
+            dates_input = argument[5:].split(',')
+            print(dates_input)
         if argument[0:4].lower() == 'path':
             path_input = argument[5:]
             #print(path_input)
@@ -1016,20 +1016,31 @@ if __name__ == '__main__':
         #input_directories = root.directories
 
     #else:
-    if dates_input == '**':
-        input_directories = glob.glob(os.path.join(path_input, dates_input))
-        length = len(input_directories)
-        print('You are about to run {} files, are you sure you want to do this? yes/no:'.format(length))
-        assuredness = input()
-        if 'yes' in assuredness:
-            pass
+    input_directories = []
+    for dates in dates_input:
+        if dates == '**':
+            input_directory = glob.glob(os.path.join(path_input, dates))
+            length = len(input_directory)
+            print('You are about to run {} files, are you sure you want to do this? yes/no:'.format(length))
+            assuredness = input()
+            if 'yes' in assuredness:
+                for intermediates in input_directory:
+                    input_directories.append(intermediates)
+                pass
+            else:
+                raise Exception('Process Canceled')
         else:
-            raise Exception('Process Canceled')
-    else:
-        input_directories = glob.glob(os.path.join(path_input, dates_input))
-        if len(input_directories) == 0:
-            raise Exception('There are no folders with those dates in  {}'.format(path_input))
+            input_directory = glob.glob(os.path.join(path_input, dates))
+            if len(input_directory) == 0:
+                pass
+            else:
+                for intermediates in input_directory:
+                    input_directories.append(intermediates)
 
+    if len(input_directories) == 0:
+        raise Exception('There are no folders with those dates in {}'.format(path_input))
+    
+    print('------')
     print(input_directories)
     for directory in input_directories:
             basefolder = str(directory)
