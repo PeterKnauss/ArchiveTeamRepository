@@ -12,6 +12,7 @@
  To run a specific date or a specific set of dates, you must add "date=" then your input. 
  TO run just one date, insert the date you would like to run in the 8 number, year/month/day format (e.g. 20010101). 
  To run multiple dates, the input should follow the * notation, preceeded by the month or year that you would like to run (e.g. 2001* for all dates in 2001; 200101* for all dates in January 2001).
+ To run multiple sets of dates, follow all above rules but separate inputs with commas (eg. 2001*,20010101,2002*...)
  
 ## Path Input
  The default path that dates are grabbed from is /data/SpeX, used on the guacamole virtual machine.
