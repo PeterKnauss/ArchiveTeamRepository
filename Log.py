@@ -985,9 +985,8 @@ if __name__ == '__main__':
     
     for argument in sys.argv:
         if argument[0:4] == 'date':
-            #has_date_input = True
             dates_input = argument[5:].split(',')
-            print(dates_input)
+            #print(dates_input)
         if argument[0:4].lower() == 'path':
             path_input = argument[5:]
             #print(path_input)
@@ -1024,8 +1023,7 @@ if __name__ == '__main__':
             print('You are about to run {} files, are you sure you want to do this? yes/no:'.format(length))
             assuredness = input()
             if 'yes' in assuredness:
-                for intermediates in input_directory:
-                    input_directories.append(intermediates)
+                input_directories.extend(input_directory)
                 pass
             else:
                 raise Exception('Process Canceled')
@@ -1034,13 +1032,11 @@ if __name__ == '__main__':
             if len(input_directory) == 0:
                 pass
             else:
-                for intermediates in input_directory:
-                    input_directories.append(intermediates)
+                input_directories.extend(input_directory)
 
     if len(input_directories) == 0:
         raise Exception('There are no folders with those dates in {}'.format(path_input))
     
-    print('------')
     print(input_directories)
     for directory in input_directories:
             basefolder = str(directory)
