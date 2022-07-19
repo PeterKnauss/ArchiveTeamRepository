@@ -119,7 +119,7 @@ def magnitude_get(i, dp, old_name, f):
 
             for mag in magnitudes:
                 proper_coord=splat.properCoordinates(coordinate)
-                query=splat.database.querySimbad(proper_coord)
+                query=splat.database.querySimbad(proper_coord, nearest=True)
                 query2MASS=splat.database.queryVizier(proper_coord, 
                             catalog='2MASS', radius=30*u.arcsec, nearest=True)
                 if len(query.columns) == 0:
@@ -582,7 +582,7 @@ def create_dictionaries(dp):
         # The actual smarts -- figure out what type the star is based on the Integration
         if 'flatlamp' in source:
             type = 'calibration'
-        elif integration < 60:
+        elif integration < 60: 
             type = 'calibrator'
         else:
             type = 'target'
@@ -627,12 +627,22 @@ def create_folder(path, date, path_input, overwrite_input):
         proc_directory='proc'
         cals_directory='cals'
         reduction_directory=os.path.join(str(Path.home()), 'reductions')
+        LOGS_directory=os.path.join(reduction_directory, 'LOGS')
         parental_directory= os.path.join(reduction_directory, str(date) )
     
         #should be something like : /home/user/reductions/(the date)/
     
         #Check if 'reductions' is created. if not print a comment and ask for one
         #and then checks if the 'date' folder already exist in reductions folder
+        try:
+            os.mkdir(LOGS_directory)
+        except OSError as err:
+            if err.errno == errno.ENOENT:
+                print('FileNotFound, Create a reductions folder')
+            if err.errno == errno.EEXIST:
+                pass
+            else:
+                raise
         try:
             os.mkdir(parental_directory)
         except OSError as err:
