@@ -579,10 +579,12 @@ def create_dictionaries(dp):
         airmass_old = airmass
         ut_old = ut
 
+        proper_coord=splat.database.properCoordinates(str(ra)+' '+str(dec))
+
         # The actual smarts -- figure out what type the star is based on the Integration
         if 'flatlamp' in source:
             type = 'calibration'
-        elif integration < 60: 
+        elif 'A' or 'F' or 'G' in splat.database.querySimbad(proper_coord, nearest=True)['SP_TYPE']: 
             type = 'calibrator'
         else:
             type = 'target'
