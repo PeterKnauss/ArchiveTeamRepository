@@ -454,9 +454,9 @@ def moving_fixed(final, source):
     last_time = hours(final[source]['UT Time'][-1])
     time_diff = last_time - first_time
 
-    print('-----------')
-    print(source)
-    print(time_diff)
+    #print('-----------')
+    #print(source)
+    #print(time_diff)
     #ra_time_diff = ra_diff / time_diff
     #dec_time_diff = dec_diff / time_diff
 
@@ -521,6 +521,7 @@ def create_dictionaries(dp):
     dec_first = None
     ut_first = None
     ut_old = None
+    row_old = None
     calibration_number = 1
 
     # Filter data by Mode
@@ -556,7 +557,7 @@ def create_dictionaries(dp):
 
         # If this iteration of the loop has a new Source, process the values we have been saving
         if source_old is not None and source.lower() != source_old.lower():
-
+            
             # Add this batch to the final result
             calibration_number = add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, calibration_number, ra_first, ra_old, dec_first, dec_old, ut_first, ut_old)
             
@@ -574,14 +575,19 @@ def create_dictionaries(dp):
         # Remember the last Source we saw, so we can tell if it changes with the next line
         prefix_old = prefix
         source_old = source
-        ra_old = ra
-        dec_old = dec
+        if '.b.' in row['File']:
+            ra_old = row_old['RA']
+            dec_old = row_old['Dec']        
+        else:
+            ra_old = ra
+            dec_old = dec
         airmass_old = airmass
         ut_old = ut
+        row_old = row
 
         proper_coord=splat.database.properCoordinates(str(ra)+' '+str(dec))
 
-        # The actual smarts -- figure out what type the star is based on the Integration
+        # The actual smarts -- figure out what type the star is
         if 'flatlamp' in source:
             type = 'calibration'
         elif 'A' or 'F' or 'G' in splat.database.querySimbad(proper_coord, nearest=True)['SP_TYPE']: 
@@ -876,7 +882,7 @@ def makelog(raw_path, cals_path, proc_path, date, format_input):
     final = create_dictionaries(dp)
     dp['Object Type'] = ['']*len(files)
     
-    print(final)
+    #print(final)
         
     for i,f in enumerate(files):
         source = dp.loc[i,'Source Name'].lower()
