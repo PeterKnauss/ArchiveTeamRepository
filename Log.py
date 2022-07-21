@@ -453,9 +453,12 @@ def moving_fixed(final, source):
     first_time = hours(final[source]['UT Time'][0])
     last_time = hours(final[source]['UT Time'][-1])
     time_diff = last_time - first_time
-
-    ra_time_diff = ra_diff / time_diff
-    dec_time_diff = dec_diff / time_diff
+    
+    try:
+        ra_time_diff = ra_diff / time_diff
+        dec_time_diff = dec_diff / time_diff
+    except ZeroDivisionError:
+        return False
     
     if ra_time_diff > 0.005 or dec_time_diff > 0.005:
         object_type = 'moving'
@@ -845,7 +848,7 @@ def get_source_list(dp,date):
 ###############################################################################
 # Actually make the log
 
-def makelog(raw_path, cals_path, proc_path, date, format_input):
+def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
     
     cols, files, dp, dpc = openfiles(date)
     for c in list(cols.keys()): 
@@ -887,6 +890,13 @@ def makelog(raw_path, cals_path, proc_path, date, format_input):
             if source == 'Object_Observed':
                 source = dp.loc[i,'File'][0:-11]
             object_type = moving_fixed(final, source)
+            #If there is a single picture error, print all but the last seven columns (Object/Spectral Type, Fluxes)
+            if object_type == False:
+                dp_limited = dp.drop(columns=dp.columns[-7:])
+                dpsl_limited = get_source_list(dp, str(date))
+                dpsl_limited.drop(columns='Object Type',inplace=True)
+                writer(proc_path, date, dp_limited, dpsl_limited, format_input, reduction)
+                raise Exception('Single picture detected. Limited spreadsheet printed, please manually reduce.')
             dp.loc[i,'Object Type'] = object_type
         if object_type == 'fixed':
             dp = magnitude_get(i, dp, old_name, f)
@@ -1053,7 +1063,7 @@ if __name__ == '__main__':
             print(date)
             try:
                 raw, cals, proc, reduction = create_folder(basefolder, date, path_input, overwrite_input)
-                makelog(raw, cals, proc, date, format_input)
+                makelog(raw, cals, proc, date, format_input, reduction)
             except Exception as err:
                 if reduction == '':
                     print(traceback.format_exc())
