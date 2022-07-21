@@ -449,32 +449,18 @@ def moving_fixed(final, source):
         
     ra_diff = abs(ra_last_prop - ra_first_prop)
     dec_diff = abs(dec_last_prop - dec_first_prop)
-    
+
     first_time = hours(final[source]['UT Time'][0])
     last_time = hours(final[source]['UT Time'][-1])
     time_diff = last_time - first_time
 
-    #print('-----------')
-    #print(source)
-    #print(time_diff)
-    #ra_time_diff = ra_diff / time_diff
-    #dec_time_diff = dec_diff / time_diff
-
     ra_time_diff = ra_diff / time_diff
     dec_time_diff = dec_diff / time_diff
-        
-    if ra_time_diff > 0.003 or dec_time_diff > 0.003:
+    
+    if ra_time_diff > 0.005 or dec_time_diff > 0.005:
         object_type = 'moving'
     else:
         object_type = 'fixed'
-        
-    #if source in ['2001 be10','1620','20790','2000 xl44','110','29']:
-    #print(source)
-    #print('ra_diff')
-    #print(ra_time_diff)
-    #print('dec_diff')
-    #print(dec_time_diff)
-    #print('------------------')
         
     return object_type
     
@@ -540,7 +526,7 @@ def create_dictionaries(dp):
 
         # Get the individual values, using part of File for Source if Source is generic
         prefix = row['File'][0:-11]
-        number = row['File'][-11:-7]
+        number = row['File'][-11:-7].lstrip('0')
         source = row['Source Name']
         if source == 'Object_Observed':
             source = row['File'][0:-11]
@@ -577,7 +563,7 @@ def create_dictionaries(dp):
         source_old = source
         if '.b.' in row['File']:
             ra_old = row_old['RA']
-            dec_old = row_old['Dec']        
+            dec_old = row_old['Dec']      
         else:
             ra_old = ra
             dec_old = dec
@@ -590,16 +576,21 @@ def create_dictionaries(dp):
         # The actual smarts -- figure out what type the star is
         if 'flatlamp' in source:
             type = 'calibration'
-        elif 'A' or 'F' or 'G' in splat.database.querySimbad(proper_coord, nearest=True)['SP_TYPE']: 
-            type = 'calibrator'
         else:
-            type = 'target'
+            try:
+                spectral_type = splat.database.querySimbad(proper_coord, nearest=True)['SP_TYPE'][0]
+                if spectral_type != 'N/A' and any(_ in spectral_type for _ in ['A', 'F', 'G']):
+                    type = 'calibrator'
+                else:
+                    type = 'target'
+            except KeyError:
+                type = 'target'
 
         # Add the Number to this batch as the particular Type
         batch[type].append(number)
 
     # Add the last batch to the final
-    add_batch(source.lower(), batch, final, prefix, airmass, calibration_number, ra_first, ra, dec_first, dec, ut_first, ut_old)
+    add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, calibration_number, ra_first, ra_old, dec_first, dec_old, ut_first, ut_old)
 
     return final
 #---------------------------------------------------------------------------------------------
@@ -961,7 +952,7 @@ def makelog(raw_path, cals_path, proc_path, date, format_input):
         data_table.loc[len(data_table.index)] = [calibration_range, prefix, target_range, calibrator_prefix, 
                              calibrator_range, '2.5,2,2.2,2,0', '1.4-1.8','0',
                              '1-2','1', B_mag, V_mag, '1', '1.75-2.05', 
-                             'spex_prism_{0}_{1}'.format(name,date), '0']
+                             'spex-prism_{0}_{1}'.format(name.replace(' ',''),date), '0']
     
     input_file = proc_path+'/input.txt'
     with open(input_file, 'w') as file:
