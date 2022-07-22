@@ -909,60 +909,54 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
     #print('target:', targets)
     #print('Selected Cals:', cals)
     
-    for number, lists in enumerate(targets):
+    for target_index, lists in enumerate(targets):
         name = lists[3]
-        prefix = final[name]['prefix']
-        try:
-            start_of_target = final[name]['types']['target'][0]['start']
-        except IndexError:
-            start_of_target = final[name]['types']['calibrator'][0]['start']
-        try:
-            end_of_target = final[name]['types']['target'][0]['end']
-        except IndexError:
-            end_of_target = final[name]['types']['calibrator'][0]['end']
-        calibrator_index = best[number][1]
-        calibrator_name = calibrators[calibrator_index][3]
-        calibrator_prefix = final[calibrator_name]['prefix']
-        start_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['start']
-        end_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['end']
-        calibrator_rows = dp.loc[(dp['Source Name'].str.lower() == calibrator_name)]
-        try:
-            V_mag = round(float(calibrator_rows['V Flux'].iloc[0]),2)
-        except ValueError:
-            V_mag = 'N/A'
-        try:
-            B_mag = round(float(calibrator_rows['B Flux'].iloc[0]),2)
-        except ValueError:
-            B_mag = 'N/A'
-        calibration_name = cals[number][1]
-        start_of_calibration = final[calibration_name]['types']['calibration'][0]['start']
-        end_of_calibration = final[calibration_name]['types']['calibration'][0]['end']
-        calibration_range = '{0}-{1}'.format(start_of_calibration, end_of_calibration)
-        calibrator_range = '{0}-{1}'.format(start_of_calibrator, end_of_calibrator)
-        target_range = '{0}-{1}'.format(start_of_target, end_of_target)
+        for index_number in range(len(final[name]['types']['target'])):   
+            if index_number == 0:
+                display_name = name.replace(' ','')
+            else:
+                name_number = int(index_number+1)
+                display_name = name.replace(' ','')+'-{}'.format(name_number)
+            prefix = final[name]['prefix']
+            #try:
+            start_of_target = final[name]['types']['target'][index_number]['start']
+            #except IndexError:
+                #start_of_target = final[name]['types']['calibrator'][index_number]['start']
+            #try:
+            end_of_target = final[name]['types']['target'][index_number]['end']
+            #except IndexError:
+                #end_of_target = final[name]['types']['calibrator'][index_number]['end']
+            calibrator_index = best[target_index][1]
+            calibrator_name = calibrators[calibrator_index][3]
+            calibrator_prefix = final[calibrator_name]['prefix']
+            start_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['start']
+            end_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['end']
+            calibrator_rows = dp.loc[(dp['Source Name'].str.lower() == calibrator_name)]
+            try:
+                V_mag = round(float(calibrator_rows['V Flux'].iloc[0]),2)
+            except ValueError:
+                V_mag = 'N/A'
+            try:
+                B_mag = round(float(calibrator_rows['B Flux'].iloc[0]),2)
+            except ValueError:
+                B_mag = 'N/A'
+            calibration_name = cals[target_index][1]
+            start_of_calibration = final[calibration_name]['types']['calibration'][0]['start']
+            end_of_calibration = final[calibration_name]['types']['calibration'][0]['end']
+            calibration_range = '{0}-{1}'.format(start_of_calibration, end_of_calibration)
+            calibrator_range = '{0}-{1}'.format(start_of_calibrator, end_of_calibrator)
+            target_range = '{0}-{1}'.format(start_of_target, end_of_target)
         
-        #print('---------------------------------')
-        #print('Source Name:', name)
-        #print('Calibrator Name:', calibrator_name)
-        #print('Calibration Name:', calibration_name)
-        #print('Prefix:', prefix)
-        #print('Object Range:', start_of_target, '-', end_of_target)
-        #print('Standard Range:',start_of_calibrator, '-', end_of_calibrator)
-        #print('Calibration Range:', start_of_calibration, '-', end_of_calibration)
-        #print('Standard B Mag:', B_mag)
-        #print('Standard V Mag:', V_mag)
-        #print('File Name:', 'spex_prism_%s_%s' % (name, date))
-        
-        if number == 0:
-            data_table = pandas.DataFrame(columns = ['cals', 'prefix1', 'obj', 'prefix2', 'std', 'ext. params',
-                        'obj scl range', 'obj shape flag', 'std scl range', 
-                        'std shape flag', 'std b mag', 'std v mag', 'shift flag', 
-                        'shift range', 'filename', 'force flag'])
-        
-        data_table.loc[len(data_table.index)] = [calibration_range, prefix, target_range, calibrator_prefix, 
-                             calibrator_range, '2.5,2,2.2,2,0', '1.4-1.8','0',
-                             '1-2','1', B_mag, V_mag, '1', '1.75-2.05', 
-                             'spex-prism_{0}_{1}'.format(name.replace(' ',''),date), '0']
+            if target_index == 0 and index_number == 0:
+                data_table = pandas.DataFrame(columns = ['cals', 'prefix1', 'obj', 'prefix2', 'std', 'ext. params',
+                            'obj scl range', 'obj shape flag', 'std scl range', 
+                            'std shape flag', 'std b mag', 'std v mag', 'shift flag', 
+                            'shift range', 'filename', 'force flag'])
+            
+            data_table.loc[len(data_table.index)] = [calibration_range, prefix, target_range, calibrator_prefix, 
+                                 calibrator_range, '2.5,2,2.2,2,0', '1.4-1.8','0',
+                                 '1-2','1', B_mag, V_mag, '1', '1.75-2.05', 
+                                 'spex-prism_{0}_{1}'.format(display_name,date), '0']
     
     input_file = proc_path+'/input.txt'
     with open(input_file, 'w') as file:
@@ -977,7 +971,7 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
         file.write('# procpath = {} \n'.format(proc_path))
         file.write('# \n')
     
-    data_table = data_table.applymap(lambda x:str(x).center(25))
+    data_table = data_table.applymap(lambda x:str(x).center(40))
     data_table.to_csv(input_file,'|', mode= 'a', index = False, header = False)
         
     print('input file written to {}'.format(input_file))
