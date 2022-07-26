@@ -940,6 +940,8 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
                 B_mag = round(float(calibrator_rows['B Flux'].iloc[0]),2)
             except ValueError:
                 B_mag = 'N/A'
+            if math.isnan(V_mag) or V_mag == '':
+                V_mag = B_mag
             calibration_name = cals[target_index][1]
             start_of_calibration = final[calibration_name]['types']['calibration'][0]['start']
             end_of_calibration = final[calibration_name]['types']['calibration'][0]['end']
@@ -950,15 +952,15 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
             if target_index == 0 and index_number == 0:
                 data_table = pandas.DataFrame(columns = ['cals', 'prefix1', 'obj', 'prefix2', 'std', 'ext. params',
                             'obj scl range', 'obj shape flag', 'std scl range', 
-                            'std shape flag', 'std b mag', 'std v mag', 'shift flag', 
+                            'std shape flag', 'std b mag', 'std v mag', 'scalelines flag', 'shift flag', 
                             'shift range', 'filename', 'force flag'])
             
             data_table.loc[len(data_table.index)] = [calibration_range, prefix, target_range, calibrator_prefix, 
-                                 calibrator_range, '2.5,2,2.2,2,0', '1.4-1.8','0',
-                                 '1-2','1', B_mag, V_mag, '1', '1.75-2.05', 
-                                 'spex-prism_{0}_{1}'.format(display_name,date), '0']
+                                 calibrator_range, '2.5,2,2.2,2,0', '1.0-1.7','0',
+                                 '1-2','1', B_mag, V_mag, '0', '1', '1.75-2.05', 
+                                 'spex-prism_{0}_{1}'.format(display_name,date), '1']
     
-    input_file = proc_path+'/input.txt'
+    input_file = proc_path+'/input_{}.txt'.format(date)
     with open(input_file, 'w') as file:
         if cols == cols_old: 
             instrument = 'SpeX'
