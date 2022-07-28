@@ -460,7 +460,9 @@ def moving_fixed(final, source):
     except ZeroDivisionError:
         return False
     
-    if ra_time_diff > 0.005 or dec_time_diff > 0.005:
+    total_time_diff = math.sqrt(float(ra_time_diff)**2 + float(dec_time_diff)**2)
+
+    if total_time_diff > 0.015:
         object_type = 'moving'
     else:
         object_type = 'fixed'
@@ -908,7 +910,20 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
     #print('calibrator:', calibrators)
     #print('target:', targets)
     #print('Selected Cals:', cals)
-    
+
+    #Check for sources that are logged as "fixed" but don't show up on Simbad. If there is a source 
+    #that is logged as "moving" on the same night, change the fixed targets to moving.
+    if 'moving' in dp['Object Type'].unique():
+        fixed_target_indices = dp.index.values[(dp['Object Type'] == 'fixed') & (dp['Spectral Type'] == 'N/A')]
+        for index in fixed_target_indices:
+            dp['Object Type'].iloc[index] = 'moving'
+            dp['Spectral Type'].iloc[index] = ''
+            dp['B Flux'].iloc[index] = ''
+            dp['V Flux'].iloc[index] = ''
+            dp['J Flux'].iloc[index] = ''
+            dp['H Flux'].iloc[index] = ''
+            dp['K Flux'].iloc[index] = ''
+
     for target_index, lists in enumerate(targets):
         name = lists[3]
         for index_number in range(len(final[name]['types']['target'])):   
