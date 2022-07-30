@@ -258,7 +258,6 @@ def Get_Scores(dictionary, dp, date):
             i = ''
             rows = dp.loc[(dp['Source Name'].str.lower() == i) & (dp['Object Type'] == 'fixed')]
             i = 'empty'
-        #Should have something here in case 'Source Name' = 'Object_Observed'
         else: rows = dp.loc[(dp['Source Name'].str.lower() == i) & (dp['Object Type'] == 'fixed')]
         if rows.empty:
             if 'flatlamp' in i:
@@ -889,7 +888,7 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
         else:
             if source == '':
                 source = 'empty'
-            if source == 'Object_Observed':
+            if source == 'object_observed':
                 source = dp.loc[i,'File'][0:-11]
             object_type = moving_fixed(final, source)
             #If there is a single picture error, print all but the last seven columns (Object/Spectral Type, Fluxes)
@@ -923,8 +922,14 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
             dp['J Flux'].iloc[index] = ''
             dp['H Flux'].iloc[index] = ''
             dp['K Flux'].iloc[index] = ''
+    
+    #Initializing the dataframe with the columns that we need 
+    data_table = pandas.DataFrame(columns = ['cals', 'prefix1', 'obj', 'prefix2', 'std', 'ext. params',
+                            'obj scl range', 'obj shape flag', 'std scl range', 
+                            'std shape flag', 'std b mag', 'std v mag', 'scalelines flag', 'shift flag', 
+                            'shift range', 'filename', 'force flag']) 
 
-    for target_index, lists in enumerate(targets):
+    for target_index, lists in enumerate(targets,0):
         name = lists[3]
         for index_number in range(len(final[name]['types']['target'])):   
             if index_number == 0:
@@ -955,20 +960,14 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
                 B_mag = round(float(calibrator_rows['B Flux'].iloc[0]),2)
             except ValueError:
                 B_mag = 'N/A'
-            if math.isnan(V_mag) or V_mag == '':
+            if pandas.isnull(V_mag) or V_mag == 'N/A' or V_mag == '':
                 V_mag = B_mag
             calibration_name = cals[target_index][1]
             start_of_calibration = final[calibration_name]['types']['calibration'][0]['start']
             end_of_calibration = final[calibration_name]['types']['calibration'][0]['end']
             calibration_range = '{0}-{1}'.format(start_of_calibration, end_of_calibration)
             calibrator_range = '{0}-{1}'.format(start_of_calibrator, end_of_calibrator)
-            target_range = '{0}-{1}'.format(start_of_target, end_of_target)
-        
-            if target_index == 0 and index_number == 0:
-                data_table = pandas.DataFrame(columns = ['cals', 'prefix1', 'obj', 'prefix2', 'std', 'ext. params',
-                            'obj scl range', 'obj shape flag', 'std scl range', 
-                            'std shape flag', 'std b mag', 'std v mag', 'scalelines flag', 'shift flag', 
-                            'shift range', 'filename', 'force flag'])
+            target_range = '{0}-{1}'.format(start_of_target, end_of_target)        
             
             data_table.loc[len(data_table.index)] = [calibration_range, prefix, target_range, calibrator_prefix, 
                                  calibrator_range, '2.5,2,2.2,2,0', '1.0-1.7','0',
