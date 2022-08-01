@@ -861,7 +861,6 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
         hdu.verify('fix')
         h = hdu[0].header
         hdu.close()
-        
         for c in list(cols.keys()):
             dp.loc[i,c] = h[cols[c]]
         if 'arc' in f: 
@@ -889,7 +888,7 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
             if source == '':
                 source = 'empty'
             if source == 'object_observed':
-                source = dp.loc[i,'File'][0:-11]
+                source = dp.loc[i,'File'][0:-11].lower()
             object_type = moving_fixed(final, source)
             #If there is a single picture error, print all but the last seven columns (Object/Spectral Type, Fluxes)
             if object_type == False:
