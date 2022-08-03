@@ -101,7 +101,10 @@ def openfiles(date): #Opens and extracts data from hdu files
     hdu = fits.open(files[0], ignore_missing_end=True)
     h = hdu[0].header
     hdu.close()
-    if 'TCS_OBJ' in list(h.keys()): cols = cols_new
+    if 'TCS_OBJ' in list(h.keys()):
+        cols = cols_new
+        global Cols_New_Label
+        Cols_New_Label = True
     else: cols = cols_old
     
     return cols, files, dp, dpc
@@ -513,6 +516,7 @@ def create_dictionaries(dp):
     ut_old = None
     row_old = None
     calibration_number = 1
+    spectral_type_B_check = False
 
     # Filter data by Mode
     data = []
@@ -529,8 +533,14 @@ def create_dictionaries(dp):
     for row in data:
 
         # Get the individual values, using part of File for Source if Source is generic
-        prefix = row['File'][0:-11]
-        number = row['File'][-11:-7].lstrip('0')
+        if Cols_New_Label == True:
+            prefix = row['File'][0:-12]
+        else:
+            prefix = row['File'][0:-11]
+        if Cols_New_Label == True:
+            number = row['File'][-12:-7].lstrip('0')
+        else:
+            number = row['File'][-13:-7].lstrip('0')
         source = row['Source Name']
         if source == 'Object_Observed':
             source = row['File'][0:-11]
@@ -575,15 +585,22 @@ def create_dictionaries(dp):
         ut_old = ut
         row_old = row
 
-        proper_coord=splat.database.properCoordinates(str(ra)+' '+str(dec))
-
         # The actual smarts -- figure out what type the star is
         if 'flatlamp' in source:
             type = 'calibration'
+        elif Cols_New_Label == True:
+            if row['Type'] == 'standard':
+                type = 'calibrator'
+            else:
+                type = 'target'
         else:
             try:
+                proper_coord=splat.database.properCoordinates(str(ra)+' '+str(dec))
                 spectral_type = splat.database.querySimbad(proper_coord, nearest=True)['SP_TYPE'][0]
-                if spectral_type != 'N/A' and any(_ in spectral_type for _ in ['A', 'F', 'G']):
+                if spectral_type != 'N/A' and any(_ in spectral_type for _ in ['A', 'F', 'G','B']):
+                    if 'B' in spectral_type and spectral_type_B_check == False:
+                        print('Spectral Type B used as a calibrator')
+                        spectral_type_B_check = True #Makes this print only happen once
                     type = 'calibrator'
                 else:
                     type = 'target'
@@ -740,9 +757,13 @@ def get_source_list(dp,date):
         dpcopy.sort_values('UT Time',inplace=True)
         dpcopy.reset_index(inplace=True,drop=True)
         coordinate=str(dpcopy.loc[i,'RA']+' '+ dpcopy.loc[i,'Dec'])
-        proper=splat.properCoordinates(coordinate)
-        dpc.loc[i,'RA']=float(proper.ra.deg)
-        dpc.loc[i,'DEC']=float(proper.dec.deg)
+        try:
+            proper=splat.properCoordinates(coordinate)
+            dpc.loc[i,'RA']=float(proper.ra.deg)
+            dpc.loc[i,'DEC']=float(proper.dec.deg)
+        except ValueError:
+            dpc.loc[i,'RA'] = ''
+            dpc.loc[i,'DEC'] = ''
         if 'flat' in dpcopy.loc[i, 'Source Name']:
             pass
         elif 'arc' in dpcopy.loc[i,'Source Name']:
@@ -750,7 +771,6 @@ def get_source_list(dp,date):
         else:
             if  dpcopy.loc[i,'Source Name' ] in source_name_list:
                 pass
-           
             else:
                 source_name_list.append(dpcopy.loc[i,'Source Name'])
                 time_list.append(str(date[0:4])+'-'+str(date[4:6])+'-'+str(date[6:])+' '+str(dpcopy.loc[i,'UT Time'])) 
@@ -862,11 +882,23 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
         h = hdu[0].header
         hdu.close()
         for c in list(cols.keys()):
-            dp.loc[i,c] = h[cols[c]]
+            try:
+                dp.loc[i,c] = h[cols[c]]
+            except KeyError:
+                dp.loc[i,c] = ''
         if 'arc' in f: 
             dp.loc[i,'Source Name'] = 'arclamp'
         if 'flat' in f: 
-            dp.loc[i,'Source Name'] = 'flat field'   
+            dp.loc[i,'Source Name'] = 'flat field'  
+
+    #Create a new dataframe that includes only prefixes and indices of all rows in our dataframe.
+    #Then check this new dataframe for duplicates to check for duplicate indices, which spextoolette cant handle
+    dp_duplicate_check = pandas.DataFrame(dp['File'].str[0:-7])
+    dp_duplicate_check.drop_duplicates(subset='File',inplace=True)
+    #If this new duplicated dp and the original dp have the same number of rows, then nothing was dropped and all is good
+    #If not, raise an exception
+    if len(dp.index) != len(dp_duplicate_check.index):
+        raise Exception('Prefix and Index duplicate detected, please fix or reduce manually') 
         
     #Sort dataframe by UT Data and Time before creating the final dictionary
     dp['UT Date Time'] = dp['UT Date'] + ' ' + dp['UT Time']
@@ -877,13 +909,16 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
     dp['Object Type'] = ['']*len(files)
     
     #print(final)
-        
+    
+    #Iterate through all the files and set object type and magnitude
     for i,f in enumerate(files):
         source = dp.loc[i,'Source Name'].lower()
         if source == 'arclamp':
             dp.loc[i,'Object Type'] = 'Calibration'
+            object_type = 'calibration'
         elif source == 'flat field':
             dp.loc[i,'Object Type'] = 'Calibration'
+            object_type = 'calibration'
         else:
             if source == '':
                 source = 'empty'
@@ -901,13 +936,11 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
         if object_type == 'fixed':
             dp = magnitude_get(i, dp, old_name, f)
             
+    #Makes source list based on main dataframe
     dpsl=get_source_list(dp, str(date))
     
+    #Matches up targets with correct calibrators and calibration sets
     best, calibrators, targets, cals = Get_Scores(final, dp, date)
-    #print('Best:', best)
-    #print('calibrator:', calibrators)
-    #print('target:', targets)
-    #print('Selected Cals:', cals)
 
     #Check for sources that are logged as "fixed" but don't show up on Simbad. If there is a source 
     #that is logged as "moving" on the same night, change the fixed targets to moving.
@@ -1067,6 +1100,7 @@ if __name__ == '__main__':
     
     print(input_directories)
     for directory in input_directories:
+            Cols_New_Label = False
             basefolder = str(directory)
             date = os.path.basename(basefolder)
             print(date)
