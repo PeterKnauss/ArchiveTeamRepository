@@ -478,7 +478,7 @@ def moving_fixed(final, source):
 ###############################################################################
 # Create Batches
 
-def add_batch(source, batch, final, prefix, airmass, calibration_number, ra_first, ra_last, dec_first, dec_last, ut_first, ut_last):
+def add_batch(source, batch, final, prefix, airmass, calibration_number, ra_first, ra_last, dec_first, dec_last, ut_first, ut_last, mode):
 
     # If we haven't see this Source before, create a place for it
     if not final.get(source):
@@ -492,6 +492,7 @@ def add_batch(source, batch, final, prefix, airmass, calibration_number, ra_firs
     final[source]['RA'] = [ra_first, ra_last]
     final[source]['Dec'] = [dec_first, dec_last]
     final[source]['UT Time'] = [ut_first, ut_last]
+    final[source]['mode'] = mode
     if 'flatlamp' in source:
         calibration_number = calibration_number + 1
 
@@ -518,16 +519,9 @@ def create_dictionaries(dp):
     calibration_number = 1
     spectral_type_B_check = False
 
-    # Filter data by Mode
     data = []
     for index in np.arange(0, len(dp.index)):
          data.append(dp.iloc[index])
-
-    # If the filter left us with nothing, give up
-    #if not data:
-        #print('There is no data with mode %s' %mode)
-        #return None # comment out this line if the data has empty cells in MODE or has no mode
-                    # and add data.append(dp.iloc[index]) to take account into data with no mode
 
     # Run through each row of the filtererd data
     for row in data:
@@ -540,7 +534,7 @@ def create_dictionaries(dp):
         if Cols_New_Label == True:
             number = row['File'][-12:-7].lstrip('0')
         else:
-            number = row['File'][-13:-7].lstrip('0')
+            number = row['File'][-11:-7].lstrip('0')
         source = row['Source Name']
         if source == 'Object_Observed':
             source = row['File'][0:-11]
@@ -554,12 +548,13 @@ def create_dictionaries(dp):
         integration = row['Integration']
         airmass = row['Airmass']
         ut = row['UT Time']
+        mode = row['Mode']
 
         # If this iteration of the loop has a new Source, process the values we have been saving
         if source_old is not None and source.lower() != source_old.lower():
             
             # Add this batch to the final result
-            calibration_number = add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, calibration_number, ra_first, ra_old, dec_first, dec_old, ut_first, ut_old)
+            calibration_number = add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, calibration_number, ra_first, ra_old, dec_first, dec_old, ut_first, ut_old, mode)
             
             # Start a new batch
             batch = {'calibration': [], 'calibrator': [], 'target': []}
@@ -584,6 +579,7 @@ def create_dictionaries(dp):
         airmass_old = airmass
         ut_old = ut
         row_old = row
+        mode_old = mode
 
         # The actual smarts -- figure out what type the star is
         if 'flatlamp' in source:
@@ -611,7 +607,7 @@ def create_dictionaries(dp):
         batch[type].append(number)
 
     # Add the last batch to the final
-    add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, calibration_number, ra_first, ra_old, dec_first, dec_old, ut_first, ut_old)
+    add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, calibration_number, ra_first, ra_old, dec_first, dec_old, ut_first, ut_old, mode)
 
     return final
 #---------------------------------------------------------------------------------------------
@@ -970,14 +966,9 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
                 name_number = int(index_number+1)
                 display_name = name.replace(' ','')+'-{}'.format(name_number)
             prefix = final[name]['prefix']
-            #try:
+            mode = final[name]['mode']
             start_of_target = final[name]['types']['target'][index_number]['start']
-            #except IndexError:
-                #start_of_target = final[name]['types']['calibrator'][index_number]['start']
-            #try:
             end_of_target = final[name]['types']['target'][index_number]['end']
-            #except IndexError:
-                #end_of_target = final[name]['types']['calibrator'][index_number]['end']
             calibrator_index = best[target_index][1]
             calibrator_name = calibrators[calibrator_index][3]
             calibrator_prefix = final[calibrator_name]['prefix']
@@ -1001,10 +992,16 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
             calibrator_range = '{0}-{1}'.format(start_of_calibrator, end_of_calibrator)
             target_range = '{0}-{1}'.format(start_of_target, end_of_target)        
             
-            data_table.loc[len(data_table.index)] = [calibration_range, prefix, target_range, calibrator_prefix, 
+            if 'long' in mode.lower():
+                data_table.loc[len(data_table.index)] = ['# '+ calibration_range, prefix, target_range, calibrator_prefix, 
                                  calibrator_range, '2.5,2,2.2,2,0', '1.0-1.7','0',
                                  '1-2','1', B_mag, V_mag, '0', '1', '1.75-2.05', 
                                  'spex-prism_{0}_{1}'.format(display_name,date), '1']
+            else:
+                data_table.loc[len(data_table.index)] = [calibration_range, prefix, target_range, calibrator_prefix, 
+                                     calibrator_range, '2.5,2,2.2,2,0', '1.0-1.7','0',
+                                     '1-2','1', B_mag, V_mag, '0', '1', '1.75-2.05', 
+                                     'spex-prism_{0}_{1}'.format(display_name,date), '1']
     
     input_file = proc_path+'/input_{}.txt'.format(date)
     with open(input_file, 'w') as file:
