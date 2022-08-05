@@ -116,10 +116,8 @@ def openfiles(date): #Opens and extracts data from hdu files
 def magnitude_get(i, dp, old_name, f):
         name = str(dp.loc[i,'Source Name'])
         coordinate=str(dp.loc[i,'RA']+' '+ dp.loc[i,'Dec'])
-        
     # if old_name is not name, run this loop to find magnitude/flux.
-        if old_name!= name: 
-
+        if old_name == None or old_name!= name: 
             for mag in magnitudes:
                 proper_coord=splat.properCoordinates(coordinate)
                 query=splat.database.querySimbad(proper_coord, nearest=True)
@@ -128,55 +126,40 @@ def magnitude_get(i, dp, old_name, f):
                 if len(query.columns) == 0:
                     dp.loc[i,'Spectral Type'] = 'N/A'
                 else:
-                    if 'arc' in f:
-                        dp.loc[i,'Spectral Type'] = ''
-                    elif 'flat' in f:
-                        dp.loc[i,'Spectral Type'] = ''
-                    else:
-                        dp.loc[i,'Spectral Type'] = query.loc[0,'SP_TYPE']
-                if 'arc' in f:
-                    dp.loc[i,'%s Flux' %mag]=''
-                elif 'flat' in f:
-                    dp.loc[i,'%s Flux' %mag]=''
-                else:
-                    if mag in ['B','V']:
+                    dp.loc[i,'Spectral Type'] = query.loc[0,'SP_TYPE']
   
    # Use 'try' statement in case for queried objects not in database 
    # (i.e that returns an empty table, or raises an error)
-                        try: 
-                            flux=float(query['FLUX_%s' %mag])
-                            dp.loc[i,'%s Flux' %mag]=flux
-                        except:
-                            dp.loc[i, '%s Flux' %mag]='N/A'
-                            pass
-                    if mag in ['J','H','K']:
-                        try:
-                            flux=float(query2MASS['%smag' %mag])
-                            dp.loc[i,'%s Flux' %mag]=flux
-                        except:
-                            dp.loc[i, '%s Flux' %mag]='N/A'
-                            pass
+                if mag in ['B','V']:
+                    try: 
+                        flux=float(query['FLUX_%s' %mag])
+                        dp.loc[i,'%s Flux' %mag]=flux
+                    except:
+                        dp.loc[i, '%s Flux' %mag]='N/A'
+                        pass
+                if mag in ['J','H','K']:
+                    try:
+                        flux=float(query2MASS['%smag' %mag])
+                        dp.loc[i,'%s Flux' %mag]=flux
+                    except:
+                        dp.loc[i, '%s Flux' %mag]='N/A'
+                        pass
                         
     # For old_name the same as name run the loop below to repeat the known 
     # object type, spectral type, and magnitudes.
         else: 
             for mag in magnitudes:
-                dp.loc[i,'Object Type'] = dp.loc[int(i-1),'Object Type']
+                #dp.loc[i,'Object Type'] = dp.loc[int(i-1),'Object Type']
                 dp.loc[i,'Spectral Type'] = dp.loc[int(i-1),'Spectral Type']
-                if 'arc' in f:
-                    dp.loc[i,'%s Flux' %mag]='None'
-                elif 'flat' in f:
-                    dp.loc[i,'%s Flux' %mag]='None'
+                if dp.loc[int(i-1),'%s Flux' %mag] == 'N/A':
+                    dp.loc[i,'%s Flux' %mag] = 'N/A'
                 else:
-                    if dp.loc[int(i-1),'%s Flux' %mag] == 'N/A':
-                        dp.loc[i,'%s Flux' %mag] = 'N/A'
-                    else:
-                        flux = dp.loc[int(i-1),'%s Flux' %mag]
-                        dp.loc[i,'%s Flux' %mag] = flux
+                    flux = dp.loc[int(i-1),'%s Flux' %mag]
+                    dp.loc[i,'%s Flux' %mag] = flux
             
         old_name = name
         
-        return dp
+        return dp, old_name
 
 #-----------------------------------------------------------------------------#
 #Code and function used to get the scores
@@ -897,9 +880,8 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
         raise Exception('Prefix and Index duplicate detected, please fix or reduce manually') 
         
     #Sort dataframe by UT Data and Time before creating the final dictionary
-    dp['UT Date Time'] = dp['UT Date'] + ' ' + dp['UT Time']
-    dp.sort_values('UT Date Time',inplace=True)
-    dp.drop(columns='UT Date Time', inplace=True)
+    dp.sort_values(by=['UT Date','UT Time'],inplace=True)
+    dp.reset_index(inplace=True,drop=True)
 
     final = create_dictionaries(dp)
     dp['Object Type'] = ['']*len(files)
@@ -909,12 +891,12 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
     #Iterate through all the files and set object type and magnitude
     for i,f in enumerate(files):
         source = dp.loc[i,'Source Name'].lower()
-        if source == 'arclamp':
+        if 'arc' in source or 'flat' in source:
             dp.loc[i,'Object Type'] = 'Calibration'
             object_type = 'calibration'
-        elif source == 'flat field':
-            dp.loc[i,'Object Type'] = 'Calibration'
-            object_type = 'calibration'
+        #elif source == 'flat field':
+            #dp.loc[i,'Object Type'] = 'Calibration'
+            #object_type = 'calibration'
         else:
             if source == '':
                 source = 'empty'
@@ -929,8 +911,9 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
                 writer(proc_path, date, dp_limited, dpsl_limited, format_input, reduction)
                 raise Exception('Single picture detected. Limited spreadsheet printed, please manually reduce.')
             dp.loc[i,'Object Type'] = object_type
+
         if object_type == 'fixed':
-            dp = magnitude_get(i, dp, old_name, f)
+            dp, old_name = magnitude_get(i, dp, old_name, f)
             
     #Makes source list based on main dataframe
     dpsl=get_source_list(dp, str(date))
@@ -941,15 +924,15 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
     #Check for sources that are logged as "fixed" but don't show up on Simbad. If there is a source 
     #that is logged as "moving" on the same night, change the fixed targets to moving.
     if 'moving' in dp['Object Type'].unique():
-        fixed_target_indices = dp.index.values[(dp['Object Type'] == 'fixed') & (dp['Spectral Type'] == 'N/A')]
+        fixed_target_indices = dp.loc[(dp['Object Type'] == 'fixed') & (dp['Spectral Type'] == 'N/A')].index.values
         for index in fixed_target_indices:
-            dp['Object Type'].iloc[index] = 'moving'
-            dp['Spectral Type'].iloc[index] = ''
-            dp['B Flux'].iloc[index] = ''
-            dp['V Flux'].iloc[index] = ''
-            dp['J Flux'].iloc[index] = ''
-            dp['H Flux'].iloc[index] = ''
-            dp['K Flux'].iloc[index] = ''
+            dp['Object Type'].loc[index] = 'moving'
+            dp['Spectral Type'].loc[index] = ''
+            dp['B Flux'].loc[index] = ''
+            dp['V Flux'].loc[index] = ''
+            dp['J Flux'].loc[index] = ''
+            dp['H Flux'].loc[index] = ''
+            dp['K Flux'].loc[index] = ''
     
     #Initializing the dataframe with the columns that we need 
     data_table = pandas.DataFrame(columns = ['cals', 'prefix1', 'obj', 'prefix2', 'std', 'ext. params',
