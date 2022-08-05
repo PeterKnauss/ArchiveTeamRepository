@@ -238,7 +238,7 @@ def Score(std,obj):
     return score
 
 #gives 2D list of scores given some dictionary
-def Get_Scores(dictionary, dp, date):
+def Get_Scores(dictionary, dp, date, proc_path, format_input, reduction):
     target = []
     calibrator = []
     cals = []
@@ -327,8 +327,12 @@ def Get_Scores(dictionary, dp, date):
     
     #check to see if there are no targets or no calibrators in the dataset
     if len(target) == 0:
+        dpsl_notarget = get_source_list(dp, str(date))
+        writer(proc_path, date, dp, dpsl_notarget, format_input, reduction)
         raise Exception('There are no targets in dataset {}'.format(date))
     if len(calibrator) == 0:
+        dpsl_nocalibs = get_source_list(dp, str(date))
+        writer(proc_path, date, dp, dpsl_nocalibs, format_input, reduction)
         raise Exception('There are no calibrators in dataset {}'.format(date))
 
     #picks the best calibrator for each target based on its score and adds a warning is the score is too high
@@ -924,7 +928,7 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
     dpsl=get_source_list(dp, str(date))
     
     #Matches up targets with correct calibrators and calibration sets
-    best, calibrators, targets, cals = Get_Scores(final, dp, date)
+    best, calibrators, targets, cals = Get_Scores(final, dp, date, proc_path, format_input, reduction)
 
     #Check for sources that are logged as "fixed" but don't show up on Simbad. If there is a source 
     #that is logged as "moving" on the same night, change the fixed targets to moving.
