@@ -128,11 +128,11 @@ def magnitude_get(i, dp, old_name, f):
                 else:
                     dp.loc[i,'Spectral Type'] = query.loc[0,'SP_TYPE']
                     if dp.loc[i,'Spectral Type'] == '':
-                        query_new = splat.database.querySimbad(name, nearest=True, isname=True)
-                        if len(query_new.columns) == 0:
+                        query = splat.database.querySimbad(name, nearest=True, isname=True)
+                        if len(query.columns) == 0:
                             dp.loc[i,'Spectral Type'] = 'N/A'
                         else:
-                            dp.loc[i,'Spectral Type'] = query_new.loc[0,'SP_TYPE']
+                            dp.loc[i,'Spectral Type'] = query.loc[0,'SP_TYPE']
   
    # Use 'try' statement in case for queried objects not in database 
    # (i.e that returns an empty table, or raises an error)
@@ -900,9 +900,6 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
         if 'arc' in source or 'flat' in source:
             dp.loc[i,'Object Type'] = 'Calibration'
             object_type = 'calibration'
-        #elif source == 'flat field':
-            #dp.loc[i,'Object Type'] = 'Calibration'
-            #object_type = 'calibration'
         else:
             if source == '':
                 source = 'empty'
@@ -920,6 +917,8 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
 
         if object_type == 'fixed':
             dp, old_name = magnitude_get(i, dp, old_name, f)
+        else:
+            old_name = str(dp.loc[i,'Source Name'])
             
     #Makes source list based on main dataframe
     dpsl=get_source_list(dp, str(date))
