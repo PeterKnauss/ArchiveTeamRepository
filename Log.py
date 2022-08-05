@@ -127,6 +127,12 @@ def magnitude_get(i, dp, old_name, f):
                     dp.loc[i,'Spectral Type'] = 'N/A'
                 else:
                     dp.loc[i,'Spectral Type'] = query.loc[0,'SP_TYPE']
+                    if dp.loc[i,'Spectral Type'] == '':
+                        query_new = splat.database.querySimbad(name, nearest=True, isname=True)
+                        if len(query_new.columns) == 0:
+                            dp.loc[i,'Spectral Type'] = 'N/A'
+                        else:
+                            dp.loc[i,'Spectral Type'] = query_new.loc[0,'SP_TYPE']
   
    # Use 'try' statement in case for queried objects not in database 
    # (i.e that returns an empty table, or raises an error)
