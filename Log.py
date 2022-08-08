@@ -564,8 +564,12 @@ def create_dictionaries(dp):
         prefix_old = prefix
         source_old = source
         if '.b.' in row['File']:
-            ra_old = row_old['RA']
-            dec_old = row_old['Dec']      
+            try:
+                ra_old = row_old['RA']
+                dec_old = row_old['Dec']   
+            except TypeError:   
+                ra_old = ra
+                dec_old = dec
         else:
             ra_old = ra
             dec_old = dec
@@ -984,7 +988,7 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
             calibrator_range = '{0}-{1}'.format(start_of_calibrator, end_of_calibrator)
             target_range = '{0}-{1}'.format(start_of_target, end_of_target)        
             
-            if 'long' in mode.lower():
+            if 'long' in mode.lower() or 'short' in mode.lower() or 'lxd' in mode.lower():
                 data_table.loc[len(data_table.index)] = ['# '+ calibration_range, prefix, target_range, calibrator_prefix, 
                                  calibrator_range, '2.5,2,2.2,2,0', '1.0-1.7','0',
                                  '1-2','1', B_mag, V_mag, '0', '1', '1.75-2.05', 
