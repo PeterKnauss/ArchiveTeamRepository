@@ -211,7 +211,7 @@ def hours(time):
 
 #generates the score form airmass and time
 def partial_score(std_vals, obj_vals):
-    Peter = 0
+    score_partial = 0
     scalers = [2/11,20]
     for i in range(len(scalers)):
         if std_vals[i] >= obj_vals[i]:
@@ -219,8 +219,8 @@ def partial_score(std_vals, obj_vals):
         else:
             aux = abs(obj_vals[i]-std_vals[i])
         aux = aux * scalers[i]
-        Peter += aux
-    return Peter
+        score_partial += aux
+    return score_partial
 
 #generates final score
 def Score(std,obj):
@@ -315,16 +315,6 @@ def Get_Scores(dictionary, dp, date, proc_path, format_input, reduction):
                 temp.append(str(airmass))
                 target.append(temp)
 
-    #Creates a 2D list of scores where the columns are calibrators and
-    #the rows are targets
-        Scores = []
-        for i in target:
-            row = []
-            for j in calibrator:
-                a = Score(i,j)
-                row.append(a)
-            Scores.append(row)
-    
     #check to see if there are no targets or no calibrators in the dataset
     if len(target) == 0:
         dpsl_notarget = get_source_list(dp, str(date))
@@ -335,36 +325,72 @@ def Get_Scores(dictionary, dp, date, proc_path, format_input, reduction):
         writer(proc_path, date, dp, dpsl_nocalibs, format_input, reduction)
         raise Exception('There are no calibrators in dataset {}'.format(date))
 
+    #Creates a 2D list of scores where the columns are calibrators and
+    #the rows are targets
+    scores = []
+    for i in target:
+        row = []    
+        for j in calibrator:
+            a = Score(i,j)
+            row.append(a)
+        scores.append(row)
+
     #picks the best calibrator for each target based on its score and adds a warning is the score is too high
-    Best = []
-    for i in Scores:
+    best = []
+    for i in scores:
         pair = []
-        a = min(i)
-        b = i.index(a)
+        mode_same_check_best = False
+        mode_best_index = 0
+        while mode_same_check_best == False:
+            scores_sorted = sorted(i)
+            a = scores_sorted[mode_best_index]
+            b = i.index(a)
+            target_scores_index = scores.index(i)
+            target_scores_name = target[target_scores_index][3]
+            calibrator_scores_name = calibrator[b][3]
+            mode_best_target = dictionary[target_scores_name]['mode']
+            mode_best_calibrator = dictionary[calibrator_scores_name]['mode']
+            if mode_best_target == mode_best_calibrator:
+                mode_same_check_best = True
+            else:
+                mode_same_check_best = False
+                mode_best_index += 1
         pair.append(a)
         pair.append(b)
         if a >= 10:
             pair.append(True)
         else:
             pair.append(False)
-        Best.append(pair)
+        best.append(pair)
 
+    #picks best calibration set for each target
     select_cals = []
     for i in target:
-        diffs = []
+        mode_same_check_cals = False
+        mode_cals_index = 0
         temp = []
-        for j in cals:
-            aux = abs(hours(i[2]) - j[0])
-            diffs.append(aux)
-        a = min(diffs)
-        b = diffs.index(a)
-        cals_name = cals[b][1]
+        while mode_same_check_cals == False:
+            diffs = []
+            for j in cals:
+                aux = abs(hours(i[2]) - j[0])
+                diffs.append(aux)
+            diffs_sorted = sorted(diffs)
+            a = diffs_sorted[mode_cals_index]
+            b = diffs.index(a)
+            cals_name = cals[b][1]
+            mode_cals_target = dictionary[i[3]]['mode']
+            mode_cals_cal = dictionary[cals_name]['mode']
+            if mode_cals_target == mode_cals_cal:
+                mode_same_check_cals = True
+            else:
+                mode_same_check_cals = False
+                mode_cals_index += 1
         temp.append(b)
         temp.append(cals_name)
         temp.append(i[3])
         select_cals.append(temp)
 
-    return Best, calibrator, target, select_cals
+    return best, calibrator, target, select_cals
 #-----------------------------------------------------------------------------#
 # Write dataframes to an excel sheet
 
@@ -547,7 +573,7 @@ def create_dictionaries(dp):
         if source_old is not None and source.lower() != source_old.lower():
             
             # Add this batch to the final result
-            calibration_number = add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, calibration_number, ra_first, ra_old, dec_first, dec_old, ut_first, ut_old, mode)
+            calibration_number = add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, calibration_number, ra_first, ra_old, dec_first, dec_old, ut_first, ut_old, mode_old)
             
             # Start a new batch
             batch = {'calibration': [], 'calibrator': [], 'target': []}
@@ -581,11 +607,6 @@ def create_dictionaries(dp):
         # The actual smarts -- figure out what type the star is
         if 'flatlamp' in source:
             type = 'calibration'
-        elif Cols_New_Label == True:
-            if row['Type'] == 'standard':
-                type = 'calibrator'
-            else:
-                type = 'target'
         else:
             try:
                 proper_coord=splat.database.properCoordinates(str(ra)+' '+str(dec))
@@ -604,7 +625,7 @@ def create_dictionaries(dp):
         batch[type].append(number)
 
     # Add the last batch to the final
-    add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, calibration_number, ra_first, ra_old, dec_first, dec_old, ut_first, ut_old, mode)
+    add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, calibration_number, ra_first, ra_old, dec_first, dec_old, ut_first, ut_old, mode_old)
 
     return final
 #---------------------------------------------------------------------------------------------
@@ -988,7 +1009,7 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
             calibrator_range = '{0}-{1}'.format(start_of_calibrator, end_of_calibrator)
             target_range = '{0}-{1}'.format(start_of_target, end_of_target)        
             
-            if 'long' in mode.lower() or 'short' in mode.lower() or 'lxd' in mode.lower():
+            if 'long' in mode.lower() or 'short' in mode.lower() or 'lxd' in mode.lower() or 'sxd' in mode.lower():
                 data_table.loc[len(data_table.index)] = ['# '+ calibration_range, prefix, target_range, calibrator_prefix, 
                                  calibrator_range, '2.5,2,2.2,2,0', '1.0-1.7','0',
                                  '1-2','1', B_mag, V_mag, '0', '1', '1.75-2.05', 
