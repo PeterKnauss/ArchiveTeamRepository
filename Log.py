@@ -608,6 +608,8 @@ def create_dictionaries(dp):
         if 'flatlamp' in source:
             type = 'calibration'
         else:
+            if (isinstance(ra,float) is not True) or (isinstance(dec, float) is not True):
+                raise Exception("Hey, There's a source with blank coordinates. Remove it or manually reduce")
             try:
                 proper_coord=splat.database.properCoordinates(str(ra)+' '+str(dec))
                 spectral_type = splat.database.querySimbad(proper_coord, nearest=True)['SP_TYPE'][0]
