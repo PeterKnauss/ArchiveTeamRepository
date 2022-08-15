@@ -212,7 +212,7 @@ def hours(time):
 #generates the score form airmass and time
 def partial_score(std_vals, obj_vals):
     score_partial = 0
-    scalers = [2/11,20]
+    scalers = [2,20]
     for i in range(len(scalers)):
         if std_vals[i] >= obj_vals[i]:
             aux = abs(std_vals[i]-obj_vals[i])
@@ -608,8 +608,8 @@ def create_dictionaries(dp):
         if 'flatlamp' in source:
             type = 'calibration'
         else:
-            if (isinstance(ra,float) is not True) or (isinstance(dec, float) is not True):
-                raise Exception("Hey, There's a source with blank coordinates. Remove it or manually reduce")
+            if ra == '' or dec == '' or airmass == '':
+                raise Exception("There is a source with blank coordinates or airmass. Please remove or manually reduce.")
             try:
                 proper_coord=splat.database.properCoordinates(str(ra)+' '+str(dec))
                 spectral_type = splat.database.querySimbad(proper_coord, nearest=True)['SP_TYPE'][0]
