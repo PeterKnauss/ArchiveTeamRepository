@@ -6,7 +6,7 @@ Repository for the Log Creation team on the Spex Archive team at UCSD Cool Star 
 
 To install all required libraries, run "pip install -r requirements.txt" from CMD while in the project directory.
 
-`[User@splat ~]$ pip install -r requirements.txt`
+`[User@splat ArchiveTeamRepository]$ pip install -r requirements.txt`
 
 # Inputs
 
