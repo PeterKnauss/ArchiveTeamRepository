@@ -268,13 +268,35 @@ def Get_Scores(dictionary, dp, date, proc_path, format_input, reduction):
                 temp.append(str(Dec))
                 temp.append(str(Time))
                 temp.append(str(i))
-                try:
-                    airmass = dictionary[i]['types']['target'][0]['airmass']
+                try: 
+                    calibrator_diff = int(dictionary[i]['types']['calibrator'][0]['end']) - int(dictionary[i]['types']['calibrator'][0]['start'])
                 except IndexError:
+                    calibrator_diff = None
+                try: 
+                    target_diff = int(dictionary[i]['types']['target'][0]['end']) - int(dictionary[i]['types']['target'][0]['start'])
+                except IndexError:
+                    target_diff = None
+
+                if calibrator_diff == None:
+                    airmass = dictionary[i]['types']['target'][0]['airmass']
+                    temp.append(str(airmass))
+                    target.append(temp)
+            
+                elif target_diff == None:
                     airmass = dictionary[i]['types']['calibrator'][0]['airmass']
-                temp.append(str(airmass))
-                target.append(temp)
-                pass
+                    temp.append(str(airmass))
+                    calibrator.append(temp)
+
+                elif calibrator_diff > target_diff:
+                    airmass = dictionary[i]['types']['calibrator'][0]['airmass']
+                    temp.append(str(airmass))
+                    calibrator.append(temp)
+                
+                elif target_diff > calibrator_diff:
+                    airmass = dictionary[i]['types']['target'][0]['airmass']
+                    temp.append(str(airmass))
+                    target.append(temp)
+
         else:
             temp = []
             RA = dictionary[i]['RA'][0]
@@ -294,7 +316,7 @@ def Get_Scores(dictionary, dp, date, proc_path, format_input, reduction):
                 target_diff = int(dictionary[i]['types']['target'][0]['end']) - int(dictionary[i]['types']['target'][0]['start'])
             except IndexError:
                 target_diff = None
-            
+
             if calibrator_diff == None:
                 airmass = dictionary[i]['types']['target'][0]['airmass']
                 temp.append(str(airmass))
@@ -348,8 +370,8 @@ def Get_Scores(dictionary, dp, date, proc_path, format_input, reduction):
             target_scores_index = scores.index(i)
             target_scores_name = target[target_scores_index][3]
             calibrator_scores_name = calibrator[b][3]
-            mode_best_target = dictionary[target_scores_name]['mode']
-            mode_best_calibrator = dictionary[calibrator_scores_name]['mode']
+            mode_best_target = dictionary[target_scores_name]['Mode']
+            mode_best_calibrator = dictionary[calibrator_scores_name]['Mode']
             if mode_best_target == mode_best_calibrator:
                 mode_same_check_best = True
             else:
@@ -365,6 +387,7 @@ def Get_Scores(dictionary, dp, date, proc_path, format_input, reduction):
 
     #picks best calibration set for each target
     select_cals = []
+
     for i in target:
         mode_same_check_cals = False
         mode_cals_index = 0
@@ -378,8 +401,8 @@ def Get_Scores(dictionary, dp, date, proc_path, format_input, reduction):
             a = diffs_sorted[mode_cals_index]
             b = diffs.index(a)
             cals_name = cals[b][1]
-            mode_cals_target = dictionary[i[3]]['mode']
-            mode_cals_cal = dictionary[cals_name]['mode']
+            mode_cals_target = dictionary[i[3]]['Mode']
+            mode_cals_cal = dictionary[cals_name]['Mode']
             if mode_cals_target == mode_cals_cal:
                 mode_same_check_cals = True
             else:
@@ -499,6 +522,14 @@ def moving_fixed(final, source):
 
 def add_batch(source, batch, final, prefix, airmass, calibration_number, ra_first, ra_last, dec_first, dec_last, ut_first, ut_last, mode):
 
+    # Check if source already exists, and if it does, check that its mode matches the new source's mode (edge case)
+    # Protects against sources of different modes with the same name
+    if 'flatlamp' in source:
+        source = 'flatlamp %s' % calibration_number
+        prefix = 'flat/arc %s' % calibration_number
+    elif final.get(source) and final[source]['Mode'] != mode:
+            source = source+'_'+mode
+
     # If we haven't see this Source before, create a place for it
     if not final.get(source):
         final[source] = {'types': {'calibration': [], 'calibrator': [], 'target': []}}
@@ -511,7 +542,7 @@ def add_batch(source, batch, final, prefix, airmass, calibration_number, ra_firs
     final[source]['RA'] = [ra_first, ra_last]
     final[source]['Dec'] = [dec_first, dec_last]
     final[source]['UT Time'] = [ut_first, ut_last]
-    final[source]['mode'] = mode
+    final[source]['Mode'] = mode
     if 'flatlamp' in source:
         calibration_number = calibration_number + 1
 
@@ -570,8 +601,7 @@ def create_dictionaries(dp):
         mode = row['Mode']
 
         # If this iteration of the loop has a new Source, process the values we have been saving
-        if source_old is not None and source.lower() != source_old.lower():
-            
+        if source_old is not None and source.lower() != source_old.lower():          
             # Add this batch to the final result
             calibration_number = add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, calibration_number, ra_first, ra_old, dec_first, dec_old, ut_first, ut_old, mode_old)
             
@@ -580,15 +610,30 @@ def create_dictionaries(dp):
             ra_first = ra
             dec_first = dec
             ut_first = row['UT Time']
-       
+        
+        elif source_old is not None and any(x in source for x in ['flat','arc']) and any(x in source_old for x in ['flat','arc']):
+            if mode != mode_old:
+                # Add this batch to the final result
+                calibration_number = add_batch(source_old.lower(), batch, final, prefix_old, airmass_old, calibration_number, ra_first, ra_old, dec_first, dec_old, ut_first, ut_old, mode_old)               
+
+                # Start a new batch
+                batch = {'calibration': [], 'calibrator': [], 'target': []}
+                ra_first = ra
+                dec_first = dec
+                ut_first = row['UT Time']
+
         if ra_first == None:
             ra_first = ra
             dec_first = dec
             ut_first = ut
 
         # Remember the last Source we saw, so we can tell if it changes with the next line
-        prefix_old = prefix
-        source_old = source
+        if 'flatlamp' in source:
+            source_old = 'flatlamp %s' % calibration_number
+            prefix_old = 'flat/arc %s' % calibration_number
+        else:
+            prefix_old = prefix
+            source_old = source
         if '.b.' in row['File']:
             try:
                 ra_old = row_old['RA']
@@ -621,7 +666,17 @@ def create_dictionaries(dp):
                 else:
                     type = 'target'
             except KeyError:
-                type = 'target'
+                try:
+                    spectral_type = splat.database.querySimbad(source, nearest=True, isname=True)['SP_TYPE'][0]
+                    if spectral_type != 'N/A' and any(_ in spectral_type for _ in ['A', 'F', 'G','B']):
+                        if 'B' in spectral_type and spectral_type_B_check == False:
+                            print('Spectral Type B used as a calibrator')
+                            spectral_type_B_check = True #Makes this print only happen once
+                        type = 'calibrator'
+                    else:
+                        type = 'target'
+                except KeyError:
+                    type = 'target'
 
         # Add the Number to this batch as the particular Type
         batch[type].append(number)
@@ -985,7 +1040,7 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
                 name_number = int(index_number+1)
                 display_name = name.replace(' ','')+'-{}'.format(name_number)
             prefix = final[name]['prefix']
-            mode = final[name]['mode']
+            mode = final[name]['Mode']
             start_of_target = final[name]['types']['target'][index_number]['start']
             end_of_target = final[name]['types']['target'][index_number]['end']
             calibrator_index = best[target_index][1]
@@ -993,7 +1048,10 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
             calibrator_prefix = final[calibrator_name]['prefix']
             start_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['start']
             end_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['end']
-            calibrator_rows = dp.loc[(dp['Source Name'].str.lower() == calibrator_name)]
+            calibrator_mode = str(final[calibrator_name]['Mode'])
+            if calibrator_mode in calibrator_name:
+                calibrator_name = calibrator_name.rsplit('_')[0]
+            calibrator_rows = dp.loc[(dp['Source Name'].str.lower() == calibrator_name) & (dp['Mode'] == calibrator_mode)]
             try:
                 V_mag = round(float(calibrator_rows['V Flux'].iloc[0]),2)
             except ValueError:
@@ -1063,20 +1121,17 @@ if __name__ == '__main__':
     for argument in sys.argv:
         if argument[0:4] == 'date':
             dates_input = argument[5:].split(',')
-            #print(dates_input)
         if argument[0:4].lower() == 'path':
             path_input = argument[5:]
-            #print(path_input)
         if argument[0:6].lower() == 'format':
             format_input = argument[7:]
-            #print(format_input)
         if argument[0:9].lower() == 'overwrite':
             overwrite_input = argument[10:]
-            #print(overwrite_input)
 
     if dates_input == '':
         print('Please input a date or set of dates (using format 200101*) you would like to run:')
         dates_input = input()
+        # Code used for a "Selectable"input
         #root = Tk()
         #root.title('Select Files')
         #root.attributes('-topmost',True)
