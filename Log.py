@@ -372,6 +372,7 @@ def Get_Scores(dictionary, dp, date, proc_path, format_input, reduction):
             calibrator_scores_name = calibrator[b][3]
             mode_best_target = dictionary[target_scores_name]['Mode']
             mode_best_calibrator = dictionary[calibrator_scores_name]['Mode']
+            print(target_scores_name, calibrator_scores_name, mode_best_target, mode_best_calibrator)
             if mode_best_target == mode_best_calibrator:
                 mode_same_check_best = True
             else:
@@ -650,33 +651,30 @@ def create_dictionaries(dp):
         mode_old = mode
 
         # The actual smarts -- figure out what type the star is
+        spectral_type = 'N/A'
+        spectral_type_flag = False
         if 'flatlamp' in source:
             type = 'calibration'
         else:
             if ra == '' or dec == '' or airmass == '':
                 raise Exception("There is a source with blank coordinates or airmass. Please remove or manually reduce.")
             try:
-                proper_coord=splat.database.properCoordinates(str(ra)+' '+str(dec))
-                spectral_type = splat.database.querySimbad(proper_coord, nearest=True)['SP_TYPE'][0]
-                if spectral_type != 'N/A' and any(_ in spectral_type for _ in ['A', 'F', 'G','B']):
-                    if 'B' in spectral_type and spectral_type_B_check == False:
-                        print('Spectral Type B used as a calibrator')
-                        spectral_type_B_check = True #Makes this print only happen once
-                    type = 'calibrator'
-                else:
-                    type = 'target'
+                spectral_type = splat.database.querySimbad(source, nearest=True, isname=True)['SP_TYPE'][0]
+                spectral_type_flag = True
             except KeyError:
                 try:
-                    spectral_type = splat.database.querySimbad(source, nearest=True, isname=True)['SP_TYPE'][0]
-                    if spectral_type != 'N/A' and any(_ in spectral_type for _ in ['A', 'F', 'G','B']):
-                        if 'B' in spectral_type and spectral_type_B_check == False:
-                            print('Spectral Type B used as a calibrator')
-                            spectral_type_B_check = True #Makes this print only happen once
-                        type = 'calibrator'
-                    else:
-                        type = 'target'
+                    proper_coord=splat.database.properCoordinates(str(ra)+' '+str(dec))
+                    spectral_type = splat.database.querySimbad(proper_coord, nearest=True)['SP_TYPE'][0]
+                    spectral_type_flag = True
                 except KeyError:
-                    type = 'target'
+                    pass
+            if spectral_type != 'N/A' and any(_ in spectral_type for _ in ['A', 'F', 'G','B']) and spectral_type_flag == False:
+                if 'B' in spectral_type and spectral_type_B_check == False:
+                    print('Spectral Type B used as a calibrator')
+                    spectral_type_B_check = True #Makes this print only happen once
+                type = 'calibrator'        
+            else:
+                type = 'target'
 
         # Add the Number to this batch as the particular Type
         batch[type].append(number)
