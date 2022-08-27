@@ -471,21 +471,6 @@ def writer(proc_path, date, dp, dpsl, format_input, reduction_path):
     return
 
 #-----------------------------------------------------------------------------#
-# Create new DataFrame for source list
-
-#def source_list(final, dp):
-#    dpsl = pandas.DataFrame()
-#    for i, sources in enumerate(final):
-#        if 'flat' in sources:
-#            pass
-#        else:
-#            dpsl.loc[i,'Source Name'] = sources
-#            dpsl.loc[i,'RA'] = final[sources]['ra'][0]
-#            dpsl.loc[i,'Dec'] = final[sources]['dec'][-1]
-
-#    return dpsl
-        
-#-----------------------------------------------------------------------------#
 # Moving vs Fixed
 
 def moving_fixed(final, source):
@@ -584,13 +569,15 @@ def create_dictionaries(dp):
     for row in data:
 
         # Get the individual values, using part of File for Source if Source is generic
+        #if len(row['File'].split('.')) > 3:
+        #    split_file = row['File'].split('.')
+        #    prefix = split_file[3]
+        #    number = split_file[4]
         if Cols_New_Label == True:
             prefix = row['File'][0:-12]
-        else:
-            prefix = row['File'][0:-11]
-        if Cols_New_Label == True:
             number = row['File'][-12:-7].lstrip('0')
         else:
+            prefix = row['File'][0:-11]
             number = row['File'][-11:-7].lstrip('0')
         source = row['Source Name']
         if source == 'Object_Observed':
@@ -966,14 +953,17 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
         if 'flat' in f: 
             dp.loc[i,'Source Name'] = 'flat field'  
 
-    #Create a new dataframe that includes only prefixes and indices of all rows in our dataframe.
+    #Create a new dataframe that includes only indices of all rows in our dataframe.
     #Then check this new dataframe for duplicates to check for duplicate indices, which spextoolette cant handle
-    dp_duplicate_check = pandas.DataFrame(dp['File'].str[0:-7])
+    if Cols_New_Label == True:    
+        dp_duplicate_check = pandas.DataFrame(dp['File'].str[-12:-7])
+    else:
+        dp_duplicate_check = pandas.DataFrame(dp['File'].str[-11:-7])
     dp_duplicate_check.drop_duplicates(subset='File',inplace=True)
     #If this new duplicated dp and the original dp have the same number of rows, then nothing was dropped and all is good
     #If not, raise an exception
     if len(dp.index) != len(dp_duplicate_check.index):
-        raise Exception('Prefix and Index duplicate detected, please fix or reduce manually') 
+        raise Exception('Index duplicate detected, please fix or reduce manually') 
         
     #Sort dataframe by UT Data and Time before creating the final dictionary
     dp.sort_values(by=['UT Date','UT Time'],inplace=True)
