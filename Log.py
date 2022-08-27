@@ -364,23 +364,30 @@ def Get_Scores(dictionary, dp, date, proc_path, format_input, reduction):
         mode_same_check_best = False
         mode_best_index = 0
         while mode_same_check_best == False:
-            scores_sorted = sorted(i)
-            a = scores_sorted[mode_best_index]
-            b = i.index(a)
-            target_scores_index = scores.index(i)
-            target_scores_name = target[target_scores_index][3]
-            calibrator_scores_name = calibrator[b][3]
-            mode_best_target = dictionary[target_scores_name]['Mode']
-            mode_best_calibrator = dictionary[calibrator_scores_name]['Mode']
-            print(target_scores_name, calibrator_scores_name, mode_best_target, mode_best_calibrator)
-            if mode_best_target == mode_best_calibrator:
+            try:
+                scores_sorted = sorted(i)
+                a = scores_sorted[mode_best_index]
+                b = i.index(a)
+                target_scores_index = scores.index(i)
+                target_scores_name = target[target_scores_index][3]
+                calibrator_scores_name = calibrator[b][3]
+                mode_best_target = dictionary[target_scores_name]['Mode']
+                mode_best_calibrator = dictionary[calibrator_scores_name]['Mode']
+                #print(target_scores_name, calibrator_scores_name, mode_best_target, mode_best_calibrator)
+            except IndexError:
+                a = None
+                b = None
+            if a == None:
+                mode_same_check_best = True
+            elif mode_best_target == mode_best_calibrator:
                 mode_same_check_best = True
             else:
-                mode_same_check_best = False
                 mode_best_index += 1
         pair.append(a)
         pair.append(b)
-        if a >= 10:
+        if a == None:
+            pair.append(False)
+        elif a >= 10:
             pair.append(True)
         else:
             pair.append(False)
@@ -388,27 +395,26 @@ def Get_Scores(dictionary, dp, date, proc_path, format_input, reduction):
 
     #picks best calibration set for each target
     select_cals = []
-
     for i in target:
         mode_same_check_cals = False
         mode_cals_index = 0
         temp = []
-        while mode_same_check_cals == False:
-            diffs = []
-            for j in cals:
-                aux = abs(hours(i[2]) - j[0])
-                diffs.append(aux)
-            diffs_sorted = sorted(diffs)
-            a = diffs_sorted[mode_cals_index]
-            b = diffs.index(a)
-            cals_name = cals[b][1]
-            mode_cals_target = dictionary[i[3]]['Mode']
-            mode_cals_cal = dictionary[cals_name]['Mode']
-            if mode_cals_target == mode_cals_cal:
-                mode_same_check_cals = True
-            else:
-                mode_same_check_cals = False
-                mode_cals_index += 1
+        #while mode_same_check_cals == False:
+        diffs = []
+        for j in cals:
+            aux = abs(hours(i[2]) - j[0])
+            diffs.append(aux)
+        diffs_sorted = sorted(diffs)
+        a = diffs_sorted[mode_cals_index]
+        b = diffs.index(a)
+        cals_name = cals[b][1]
+        mode_cals_target = dictionary[i[3]]['Mode']
+        mode_cals_cal = dictionary[cals_name]['Mode']
+            #if mode_cals_target == mode_cals_cal:
+            #    mode_same_check_cals = True
+            #else:
+            #    mode_same_check_cals = False
+            #    mode_cals_index += 1
         temp.append(b)
         temp.append(cals_name)
         temp.append(i[3])
@@ -668,7 +674,7 @@ def create_dictionaries(dp):
                     spectral_type_flag = True
                 except KeyError:
                     pass
-            if spectral_type != 'N/A' and any(_ in spectral_type for _ in ['A', 'F', 'G','B']) and spectral_type_flag == False:
+            if spectral_type != 'N/A' and any(_ in spectral_type for _ in ['A', 'F', 'G','B']) and spectral_type_flag == True:
                 if 'B' in spectral_type and spectral_type_B_check == False:
                     print('Spectral Type B used as a calibrator')
                     spectral_type_B_check = True #Makes this print only happen once
@@ -1041,33 +1047,42 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
             mode = final[name]['Mode']
             start_of_target = final[name]['types']['target'][index_number]['start']
             end_of_target = final[name]['types']['target'][index_number]['end']
+            target_range = '{0}-{1}'.format(start_of_target, end_of_target)       
             calibrator_index = best[target_index][1]
-            calibrator_name = calibrators[calibrator_index][3]
-            calibrator_prefix = final[calibrator_name]['prefix']
-            start_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['start']
-            end_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['end']
-            calibrator_mode = str(final[calibrator_name]['Mode'])
-            if calibrator_mode in calibrator_name:
-                calibrator_name = calibrator_name.rsplit('_')[0]
-            calibrator_rows = dp.loc[(dp['Source Name'].str.lower() == calibrator_name) & (dp['Mode'] == calibrator_mode)]
-            try:
-                V_mag = round(float(calibrator_rows['V Flux'].iloc[0]),2)
-            except ValueError:
-                V_mag = 'N/A'
-            try:
-                B_mag = round(float(calibrator_rows['B Flux'].iloc[0]),2)
-            except ValueError:
+            if calibrator_index == None:
+                calibrator_range = 'N/A'
+                calibrator_prefix = 'N/A'  
                 B_mag = 'N/A'
-            if pandas.isnull(V_mag) or V_mag == 'N/A' or V_mag == '':
-                V_mag = B_mag
+                V_mag = 'N/A'
+                print('Target {} did not have a standard star mode match'.format(name))
+            else:
+                calibrator_name = calibrators[calibrator_index][3]
+                calibrator_prefix = final[calibrator_name]['prefix']
+                start_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['start']
+                end_of_calibrator = final[calibrator_name]['types']['calibrator'][0]['end']
+                calibrator_range = '{0}-{1}'.format(start_of_calibrator, end_of_calibrator)
+                calibrator_mode = str(final[calibrator_name]['Mode'])
+                if calibrator_mode in calibrator_name:
+                    calibrator_name = calibrator_name.rsplit('_')[0]
+                calibrator_rows = dp.loc[(dp['Source Name'].str.lower() == calibrator_name) & (dp['Mode'] == calibrator_mode)]
+                if calibrator_rows.empty:
+                    calibrator_rows = dp.loc[(dp['File'].str.lower().str.contains(calibrator_name)) & (dp['Mode'] == calibrator_mode)]
+                try:
+                    V_mag = round(float(calibrator_rows['V Flux'].iloc[0]),2)
+                except ValueError:
+                    V_mag = 'N/A'
+                try:
+                    B_mag = round(float(calibrator_rows['B Flux'].iloc[0]),2)
+                except ValueError:
+                    B_mag = 'N/A'
+                if pandas.isnull(V_mag) or V_mag == 'N/A' or V_mag == '':
+                    V_mag = B_mag
             calibration_name = cals[target_index][1]
             start_of_calibration = final[calibration_name]['types']['calibration'][0]['start']
             end_of_calibration = final[calibration_name]['types']['calibration'][0]['end']
-            calibration_range = '{0}-{1}'.format(start_of_calibration, end_of_calibration)
-            calibrator_range = '{0}-{1}'.format(start_of_calibrator, end_of_calibrator)
-            target_range = '{0}-{1}'.format(start_of_target, end_of_target)        
+            calibration_range = '{0}-{1}'.format(start_of_calibration, end_of_calibration) 
             
-            if 'long' in mode.lower() or 'short' in mode.lower() or 'lxd' in mode.lower() or 'sxd' in mode.lower():
+            if 'long' in mode.lower() or 'short' in mode.lower() or 'lxd' in mode.lower() or 'sxd' in mode.lower() or calibrator_index == None:
                 data_table.loc[len(data_table.index)] = ['# '+ calibration_range, prefix, target_range, calibrator_prefix, 
                                  calibrator_range, '2.5,2,2.2,2,0', '1.0-1.7','0',
                                  '1-2','1', B_mag, V_mag, '0', '1', '1.75-2.05', 
