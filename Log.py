@@ -1010,8 +1010,6 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
         else:
             old_name = str(dp.loc[i,'Source Name'])
             
-    #Makes source list based on main dataframe
-    dpsl=get_source_list(dp, str(date))
     
     #Matches up targets with correct calibrators and calibration sets
     best, calibrators, targets, cals = Get_Scores(final, dp, date, proc_path, format_input, reduction)
@@ -1028,7 +1026,9 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
             dp['J Flux'].loc[index] = ''
             dp['H Flux'].loc[index] = ''
             dp['K Flux'].loc[index] = ''
-    
+
+    #Makes source list based on main dataframe
+    dpsl=get_source_list(dp, str(date))
     #Initializing the dataframe with the columns that we need 
     data_table = pandas.DataFrame(columns = ['cals', 'prefix1', 'obj', 'prefix2', 'std', 'ext. params',
                             'obj scl range', 'obj shape flag', 'std scl range', 
