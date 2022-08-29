@@ -399,22 +399,26 @@ def Get_Scores(dictionary, dp, date, proc_path, format_input, reduction):
         mode_same_check_cals = False
         mode_cals_index = 0
         temp = []
-        #while mode_same_check_cals == False:
-        diffs = []
-        for j in cals:
-            aux = abs(hours(i[2]) - j[0])
-            diffs.append(aux)
-        diffs_sorted = sorted(diffs)
-        a = diffs_sorted[mode_cals_index]
-        b = diffs.index(a)
-        cals_name = cals[b][1]
-        mode_cals_target = dictionary[i[3]]['Mode']
-        mode_cals_cal = dictionary[cals_name]['Mode']
-            #if mode_cals_target == mode_cals_cal:
-            #    mode_same_check_cals = True
-            #else:
-            #    mode_same_check_cals = False
-            #    mode_cals_index += 1
+        while mode_same_check_cals == False:
+		    diffs = []
+		    for j in cals:
+		        aux = abs(hours(i[2]) - j[0])
+		        diffs.append(aux)
+		    diffs_sorted = sorted(diffs)
+		    try:a = diffs_sorted[mode_cals_index]
+				b = diffs.index(a)
+				cals_name = cals[b][1]
+				mode_cals_target = dictionary[i[3]]['Mode']
+				mode_cals_cal = dictionary[cals_name]['Mode']
+			except IndexError:
+				b = None
+				cals_name = None
+			if b == None:
+				mode_same_check_cals = True
+            elif mode_cals_target == mode_cals_cal:
+                mode_same_check_cals = True
+            else:
+                mode_cals_index += 1
         temp.append(b)
         temp.append(cals_name)
         temp.append(i[3])
@@ -1068,11 +1072,15 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
                 if pandas.isnull(V_mag) or V_mag == 'N/A' or V_mag == '':
                     V_mag = B_mag
             calibration_name = cals[target_index][1]
-            start_of_calibration = final[calibration_name]['types']['calibration'][0]['start']
-            end_of_calibration = final[calibration_name]['types']['calibration'][0]['end']
-            calibration_range = '{0}-{1}'.format(start_of_calibration, end_of_calibration) 
+			if calibration_name == None:
+				calibration_range = 'N/A
+				print('Target {} does not have a standard star mode match'.format(name))
+			else:
+		        start_of_calibration = final[calibration_name]['types']['calibration'][0]['start']
+		        end_of_calibration = final[calibration_name]['types']['calibration'][0]['end']
+		        calibration_range = '{0}-{1}'.format(start_of_calibration, end_of_calibration) 
             
-            if 'long' in mode.lower() or 'short' in mode.lower() or 'lxd' in mode.lower() or 'sxd' in mode.lower() or calibrator_index == None:
+            if any(x in mode.lower() for x in ['long','short','lxd','sxd']) or calibrator_index == None or calibration_name == None:
                 data_table.loc[len(data_table.index)] = ['# '+ calibration_range, prefix, target_range, calibrator_prefix, 
                                  calibrator_range, '2.5,2,2.2,2,0', '1.0-1.7','0',
                                  '1-2','1', B_mag, V_mag, '0', '1', '1.75-2.05', 
