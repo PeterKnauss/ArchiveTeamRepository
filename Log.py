@@ -400,21 +400,22 @@ def Get_Scores(dictionary, dp, date, proc_path, format_input, reduction):
         mode_cals_index = 0
         temp = []
         while mode_same_check_cals == False:
-		    diffs = []
-		    for j in cals:
-		        aux = abs(hours(i[2]) - j[0])
-		        diffs.append(aux)
-		    diffs_sorted = sorted(diffs)
-		    try:a = diffs_sorted[mode_cals_index]
-				b = diffs.index(a)
-				cals_name = cals[b][1]
-				mode_cals_target = dictionary[i[3]]['Mode']
-				mode_cals_cal = dictionary[cals_name]['Mode']
-			except IndexError:
-				b = None
-				cals_name = None
-			if b == None:
-				mode_same_check_cals = True
+            diffs = []
+            for j in cals:
+                aux = abs(hours(i[2]) - j[0])
+                diffs.append(aux)
+            diffs_sorted = sorted(diffs)
+            try:
+                a = diffs_sorted[mode_cals_index]
+                b = diffs.index(a)
+                cals_name = cals[b][1]
+                mode_cals_target = dictionary[i[3]]['Mode']
+                mode_cals_cal = dictionary[cals_name]['Mode']
+            except IndexError:
+                b = None
+                cals_name = None
+            if b == None:
+                mode_same_check_cals = True
             elif mode_cals_target == mode_cals_cal:
                 mode_same_check_cals = True
             else:
@@ -834,6 +835,17 @@ def get_source_list(dp,date):
             pass
         elif 'arc' in dpcopy.loc[i,'Source Name']:
             pass
+
+        elif dpcopy.loc[i,'Source Name'].lower() == 'object_observed':
+            new_name=dpcopy.loc[i, 'File'][0:-11]
+            if new_name in source_name_list:
+                pass
+
+            else:
+                source_name_list.append(new_name)
+                time_list.append(str(date[0:4])+'-'+str(date[4:6])+'-'+str(date[6:])+' '+str(dpcopy.loc[i,'UT Time'])) 
+                coord_list.append(str(dpcopy.loc[i,'RA'])+' '+str(dpcopy.loc[i,'Dec']))
+                index_list_source.append(i)
         else:
             if  dpcopy.loc[i,'Source Name' ] in source_name_list:
                 pass
@@ -857,7 +869,9 @@ def get_source_list(dp,date):
             if name == dpcopy.loc[i,'Source Name']:
                 if bool(dpsl.loc[num,'Object Type'])== False:
                     dpsl.loc[num, 'Object Type']=dpcopy.loc[i,'Object Type']
-
+            if name == dpcopy.loc[i,'File'][0:-11]:
+                if bool(dpsl.loc[num,'Object Type'])== False:
+                    dpsl.loc[num, 'Object Type']=dpcopy.loc[i,'Object Type']
         if dpcopy.loc[index_list_source[num], 'Object Type']== 'moving':
             
             try:
@@ -914,7 +928,7 @@ def get_source_list(dp,date):
         num=num+1
         for i,l in enumerate(dpcopy['Source Name']):
         
-            if dpcopy.loc[i, 'Source Name'] in name:
+            if (dpcopy.loc[i, 'Source Name'] in name ) or (dpcopy.loc[i,'File'][0:-11] in name):
                 ra_list.append(dpc.loc[i,'RA'])
                 dec_list.append(dpc.loc[i,'DEC'])
         
@@ -1072,14 +1086,14 @@ def makelog(raw_path, cals_path, proc_path, date, format_input, reduction):
                 if pandas.isnull(V_mag) or V_mag == 'N/A' or V_mag == '':
                     V_mag = B_mag
             calibration_name = cals[target_index][1]
-			if calibration_name == None:
-				calibration_range = 'N/A
-				print('Target {} does not have a standard star mode match'.format(name))
-			else:
-		        start_of_calibration = final[calibration_name]['types']['calibration'][0]['start']
-		        end_of_calibration = final[calibration_name]['types']['calibration'][0]['end']
-		        calibration_range = '{0}-{1}'.format(start_of_calibration, end_of_calibration) 
-            
+            if calibration_name == None:
+                calibration_range = 'N/A'
+                print('Target {} does not have a standard star mode match'.format(name))
+            else:
+                start_of_calibration = final[calibration_name]['types']['calibration'][0]['start']
+                end_of_calibration = final[calibration_name]['types']['calibration'][0]['end']
+                calibration_range = '{0}-{1}'.format(start_of_calibration, end_of_calibration)
+                
             if any(x in mode.lower() for x in ['long','short','lxd','sxd']) or calibrator_index == None or calibration_name == None:
                 data_table.loc[len(data_table.index)] = ['# '+ calibration_range, prefix, target_range, calibrator_prefix, 
                                  calibrator_range, '2.5,2,2.2,2,0', '1.0-1.7','0',
